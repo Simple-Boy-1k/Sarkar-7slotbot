@@ -64,7 +64,6 @@ def is_admin(user_id):
 
 # ----------------- KEYBOARDS SETUP ----------------- #
 
-# OWNER PANEL KEYBOARD
 OWNER_KEYBOARD = ReplyKeyboardMarkup(
     [
         [KeyboardButton("➕ Add Admin"), KeyboardButton("❌ Remove Admin")],
@@ -100,7 +99,6 @@ OWNER_KEYBOARD = ReplyKeyboardMarkup(
     resize_keyboard=True
 )
 
-# ADMIN PANEL KEYBOARD
 ADMIN_KEYBOARD = ReplyKeyboardMarkup(
     [
         [KeyboardButton("👥 Stats User")],
@@ -138,12 +136,15 @@ async def check_force_sub(client, user_id):
     unjoined = []
     for slot in slots:
         s_id, chat_id, name, link = slot
-        if chat_id and chat_id.strip():
-            try:
-                member = await client.get_chat_member(chat_id.strip(), user_id)
-                if member.status in [enums.ChatMemberStatus.BANNED, enums.ChatMemberStatus.LEFT]:
+        if link and link.strip():
+            if chat_id and chat_id.strip():
+                try:
+                    member = await client.get_chat_member(chat_id.strip(), user_id)
+                    if member.status in [enums.ChatMemberStatus.BANNED, enums.ChatMemberStatus.LEFT]:
+                        unjoined.append((s_id, name or f"Channel {s_id}", link))
+                except Exception:
                     unjoined.append((s_id, name or f"Channel {s_id}", link))
-            except Exception:
+            else:
                 unjoined.append((s_id, name or f"Channel {s_id}", link))
     return unjoined
 
@@ -156,9 +157,6 @@ async def send_start_panel(client, message, user_id):
             reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("📢 Official Channel ↗", url=offline_chan)]])
         )
 
-    unjoined = await check_force_sub(client, user_id)
-    
-    # Text Layout matching exact screenshot styling
     default_text = (
         "🔥 **Welcome SARKAR :: ⚔️ :: MOD**\n\n"
         "🚫 **Join All Channels To Unlock 📬**\n\n"
@@ -175,7 +173,6 @@ async def send_start_panel(client, message, user_id):
     all_slots = get_db("SELECT id, name, link FROM slots ORDER BY id ASC")
     active_slots = [s for s in all_slots if s[2] and s[2].strip()]
 
-    # Grid arrangement: 2 channels per row
     for i in range(0, len(active_slots), 2):
         row = []
         s1 = active_slots[i]
@@ -185,18 +182,15 @@ async def send_start_panel(client, message, user_id):
             row.append(InlineKeyboardButton(text=f"{s2[1] or f'Channel {s2[0]}'} ↗", url=s2[2]))
         inline_buttons.append(row)
 
-    # Click Link Button if set
     click_name = get_setting("click_name")
     click_url = get_setting("click_url")
     if click_name and click_url:
         inline_buttons.append([InlineKeyboardButton(text=f"{click_name} ↗", url=click_url)])
 
-    # Check Joined Button
     inline_buttons.append([InlineKeyboardButton(text="Check Joined ↗", callback_data="verify_sub")])
 
     markup = InlineKeyboardMarkup(inline_buttons)
 
-    # Send Photo/Video Banner
     if media_type == "photo" and media_file:
         await client.send_photo(message.chat.id, photo=media_file, caption=custom_text, reply_markup=markup)
     elif media_type == "video" and media_file:
@@ -204,7 +198,6 @@ async def send_start_panel(client, message, user_id):
     else:
         await client.send_message(message.chat.id, text=custom_text, reply_markup=markup)
 
-    # Send Voice Note if set
     if voice_file:
         await client.send_voice(message.chat.id, voice=voice_file)
 
@@ -247,7 +240,7 @@ async def handle_control_buttons(client, message: Message):
     if not is_admin(user_id):
         return
 
-    # --- OWNER-ONLY ACTIONS ---
+    # OWNER ACTIONS
     if is_owner(user_id):
         if text == "➕ Add Admin":
             user_states[user_id] = "ADD_ADMIN"
@@ -265,12 +258,8 @@ async def handle_control_buttons(client, message: Message):
         elif text == "📢 Broadcast":
             user_states[user_id] = "BROADCAST"
             return await message.reply_text("📢 Send broadcast message:")
-        elif text == "📊 Broadcast Status":
-            return await message.reply_text("📊 Broadcast System Ready.")
-        elif text == "⛔ Stop Broadcast":
-            return await message.reply_text("⛔ Broadcast Stopped.")
 
-    # --- OWNER & ADMIN SHARED ACTIONS ---
+    # SHARED ACTIONS
     if text in ["👑 OWNER PANEL", "🛡️ ADMIN PANEL"]:
         kb = OWNER_KEYBOARD if is_owner(user_id) else ADMIN_KEYBOARD
         return await message.reply_text("✅ Panel refreshed.", reply_markup=kb)
@@ -281,7 +270,7 @@ async def handle_control_buttons(client, message: Message):
 
     elif text == "❌ Bot Offline":
         set_setting("bot_status", "offline")
-        return await message.reply_text("❌ Bot is now **Offline** for normal users.")
+        return await message.reply_text("❌ Bot is now **Offline**.")
 
     elif text == "✅ Bot Online":
         set_setting("bot_status", "online")
@@ -324,13 +313,11 @@ async def handle_control_buttons(client, message: Message):
         set_setting("voice_file_id", None)
         return await message.reply_text("✅ Voice Note removed.")
 
-    # SLOT SETTERS (1 to 7)
     elif text.startswith("✅ SLOT "):
         slot_num = text.replace("✅ SLOT ", "").strip()
         user_states[user_id] = f"SET_SLOT_{slot_num}"
-        return await message.reply_text(f"⚙️ Send Slot {slot_num} details:\nFormat: `ChatID | Name | Link`\nExample: `-10012345 | Channel 1 | https://t.me/example`")
+        return await message.reply_text(f"⚙️ Send Slot {slot_num} Link or Details:\n\n1. **Direct Link:** `https://t.me/+xyz` or `https://t.me/channelname`\n2. **Full Format:** `ChatID | Channel Name | Link`")
 
-    # SLOT REMOVERS (1 to 7)
     elif text.startswith("❌ Remove SLOT "):
         slot_num = text.replace("❌ Remove SLOT ", "").strip()
         get_db("UPDATE slots SET chat_id='', name='', link='' WHERE id=?", (slot_num,), commit=True)
@@ -338,7 +325,7 @@ async def handle_control_buttons(client, message: Message):
 
     elif text == "📴 Set Offline Channel":
         user_states[user_id] = "SET_OFFLINE_CHAN"
-        return await message.reply_text("📴 Send Offline Channel link (`https://t.me/...`):")
+        return await message.reply_text("📴 Send Offline Channel link:")
 
     elif text == "❌ Remove Offline Channel":
         set_setting("offline_channel", None)
@@ -347,7 +334,7 @@ async def handle_control_buttons(client, message: Message):
     elif text == "🧹 Clear Cache":
         return await message.reply_text("🧹 Cache cleared successfully!")
 
-    # --- STATE INPUT PROCESSOR ---
+    # STATE INPUT PROCESSOR
     if state == "ADD_ADMIN" and is_owner(user_id):
         try:
             aid = int(text.strip())
@@ -404,15 +391,40 @@ async def handle_control_buttons(client, message: Message):
         user_states.pop(user_id, None)
         return await message.reply_text("✅ Offline Channel Link Saved!")
 
+    # FLEXIBLE SLOT PARSER (Direct link OR Full format)
     elif state and state.startswith("SET_SLOT_"):
         slot_id = int(state.replace("SET_SLOT_", ""))
-        try:
-            parts = [x.strip() for x in text.split("|")]
-            get_db("UPDATE slots SET chat_id=?, name=?, link=? WHERE id=?", (parts[0], parts[1], parts[2], slot_id), commit=True)
+        parts = [x.strip() for x in text.split("|")]
+        
+        chat_id = ""
+        name = f"Channel {slot_id}"
+        link = ""
+
+        if len(parts) == 3:
+            chat_id, name, link = parts[0], parts[1], parts[2]
+        elif len(parts) == 2:
+            if parts[0].startswith("-100") or parts[0].isdigit():
+                chat_id, link = parts[0], parts[1]
+            else:
+                name, link = parts[0], parts[1]
+        elif len(parts) == 1:
+            link = parts[0]
+            if "t.me/" in link and not "+" in link and not "joinchat" in link:
+                clean_name = link.split("t.me/")[-1].replace("@", "").split("/")[0]
+                if clean_name:
+                    chat_id = f"@{clean_name}"
+
+        if "t.me" in link or "telegram.me" in link or "telegram.dog" in link:
+            get_db("UPDATE slots SET chat_id=?, name=?, link=? WHERE id=?", (chat_id, name, link, slot_id), commit=True)
             user_states.pop(user_id, None)
-            return await message.reply_text(f"✅ SLOT {slot_id} Updated Successfully!")
-        except Exception:
-            return await message.reply_text("❌ Invalid format! Use: `ChatID | Name | Link`")
+            return await message.reply_text(
+                f"✅ **SLOT {slot_id} Saved Successfully!**\n\n"
+                f"📌 **Name:** `{name}`\n"
+                f"🆔 **ChatID:** `{chat_id or 'Auto/Direct Link'}`\n"
+                f"🔗 **Link:** {link}"
+            )
+        else:
+            return await message.reply_text("❌ Kripya valid Telegram link (`https://t.me/...`) bhejein!")
 
     elif state == "BROADCAST" and is_owner(user_id):
         users = get_db("SELECT user_id FROM users")
