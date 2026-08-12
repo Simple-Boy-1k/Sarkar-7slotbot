@@ -1,0 +1,28 @@
+{
+  "name": "Telegram 7-Slot Admin Control Bot",
+  "description": "Telegram Force Sub Bot with Full Admin Panel",
+  "keywords": ["python", "pyrogram", "telegram", "bot"],
+  "env": {
+    "API_ID": {
+      "description": "Telegram API ID (my.telegram.org se)",
+      "required": true
+    },
+    "API_HASH": {
+      "description": "Telegram API Hash (my.telegram.org se)",
+      "required": true
+    },
+    "BOT_TOKEN": {
+      "description": "Bot Token (@BotFather se)",
+      "required": true
+    },
+    "OWNER_ID": {
+      "description": "Aapki Telegram Numeric User ID",
+      "required": true
+    }
+  },
+  "buildpacks": [
+    {
+      "url": "heroku/python"
+    }
+  ]
+}
