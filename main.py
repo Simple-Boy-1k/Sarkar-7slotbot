@@ -48,13 +48,20 @@ async def send_start_panel(client, message, user_id):
             parse_mode=enums.ParseMode.HTML
         )
 
-    default_text = (
-        f"{ICON_FIRE} <b>Welcome SARKAR :: {ICON_SWORDS} :: MOD</b>\n\n"
-        f"{ICON_LOCK} <b>Join All Channels To Unlock {ICON_TELEGRAM}</b>\n\n"
-        "🚴‍♂️ 💧 <b>How To Get Key 💭 📈</b>\n"
-        f"🧐 <b>GET KEY {ICON_KEY}</b>"
-    )
-    custom_text = get_setting("promo_text") or default_text
+    # Fetch User First Name & Full Name
+    first_name = message.from_user.first_name if message.from_user else "User"
+    last_name = message.from_user.last_name if message.from_user and message.from_user.last_name else ""
+    full_name = f"{first_name} {last_name}".strip()
+
+    # ONLY WELCOME + USER NAME DISPLAY
+    default_text = f"<b>Welcome {full_name}</b>"
+    
+    custom_text = get_setting("promo_text")
+    if custom_text:
+        custom_text = custom_text.replace("{name}", full_name).replace("{first_name}", first_name)
+    else:
+        custom_text = default_text
+
     media_file = get_setting("media_file_id")
     media_type = get_setting("media_type")
     voice_file = get_setting("voice_file_id")
@@ -120,7 +127,7 @@ async def verify_cb(client, callback: CallbackQuery):
         await callback.message.delete()
         await client.send_message(callback.message.chat.id, key_msg, parse_mode=enums.ParseMode.HTML)
 
-# Setup Admin Control Handlers from admin.py
+# Setup Admin Control Handlers
 setup_admin_handlers(app, OWNER_ID, send_start_panel)
 
 # ----------------- START BOT ----------------- #
