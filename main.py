@@ -1,300 +1,129 @@
-from pyrogram import filters, enums
-from pyrogram.types import ReplyKeyboardMarkup, KeyboardButton, Message
-from database import get_db, get_setting, set_setting, is_owner, is_admin
+import os
+from pyrogram import Client, filters, enums
+from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, Message, CallbackQuery
 
-user_states = {}
+from database import init_db, get_db, get_setting, is_admin
+from emojis import (
+    ICON_FIRE, ICON_SWORDS, ICON_LOCK, ICON_TELEGRAM, ICON_KEY,
+    BTN_PURPLE_STAR, BTN_GREEN_CHECK
+)
+from admin import setup_admin_handlers, user_states
 
-def get_owner_keyboard():
-    return ReplyKeyboardMarkup(
-        [
-            [KeyboardButton("➕ Add Admin"), KeyboardButton("❌ Remove Admin")],
-            [KeyboardButton("📋 Admin List")],
-            [KeyboardButton("👥 Stats User")],
-            [KeyboardButton("🗑️ Clear Stats User")],
-            [KeyboardButton("❌ Bot Offline"), KeyboardButton("✅ Bot Online")],
-            [KeyboardButton("🚀 Start Bot")],
-            [KeyboardButton("✏️ Set Text Promo"), KeyboardButton("❌ Remove Promo Text")],
-            [KeyboardButton("🔑 Set GET KEY Link"), KeyboardButton("❌ Remove GET KEY Link")],
-            [KeyboardButton("🖼️ Set DP"), KeyboardButton("❌ Remove DP")],
-            [KeyboardButton("🔗 Set Click Here"), KeyboardButton("❌ Remove Click Here Link")],
-            [KeyboardButton("🎙️ Set Voice"), KeyboardButton("❌ Remove Voice")],
-            [KeyboardButton("✅ SLOT 1"), KeyboardButton("✅ SLOT 2")],
-            [KeyboardButton("✅ SLOT 3"), KeyboardButton("✅ SLOT 4")],
-            [KeyboardButton("✅ SLOT 5"), KeyboardButton("✅ SLOT 6")],
-            [KeyboardButton("✅ SLOT 7")],
-            [KeyboardButton("❌ Remove SLOT 1"), KeyboardButton("❌ Remove SLOT 2")],
-            [KeyboardButton("❌ Remove SLOT 3"), KeyboardButton("❌ Remove SLOT 4")],
-            [KeyboardButton("❌ Remove SLOT 5"), KeyboardButton("❌ Remove SLOT 6")],
-            [KeyboardButton("❌ Remove SLOT 7")],
-            [KeyboardButton("✅ Verify"), KeyboardButton("❌ Remove Verify")],
-            [KeyboardButton("📢 Broadcast"), KeyboardButton("📊 Broadcast Status")],
-            [KeyboardButton("⛔ Stop Broadcast")],
-            [KeyboardButton("📴 Set Offline Channel"), KeyboardButton("❌ Remove Offline Channel")],
-            [KeyboardButton("🧹 Clear Cache")],
-            [KeyboardButton("👑 OWNER PANEL")]
-        ],
-        resize_keyboard=True
-    )
+# ----------------- CONFIGURATION ----------------- #
+API_ID = int(os.environ.get("API_ID", "0"))
+API_HASH = os.environ.get("API_HASH", "")
+BOT_TOKEN = os.environ.get("BOT_TOKEN", "")
+OWNER_ID = int(os.environ.get("OWNER_ID", "0"))
 
-def get_admin_keyboard():
-    return ReplyKeyboardMarkup(
-        [
-            [KeyboardButton("👥 Stats User")],
-            [KeyboardButton("❌ Bot Offline"), KeyboardButton("✅ Bot Online")],
-            [KeyboardButton("🚀 Start Bot")],
-            [KeyboardButton("✏️ Set Text Promo"), KeyboardButton("❌ Remove Promo Text")],
-            [KeyboardButton("🔑 Set GET KEY Link"), KeyboardButton("❌ Remove GET KEY Link")],
-            [KeyboardButton("🖼️ Set DP"), KeyboardButton("❌ Remove DP")],
-            [KeyboardButton("🔗 Set Click Here"), KeyboardButton("❌ Remove Click Here Link")],
-            [KeyboardButton("🎙️ Set Voice"), KeyboardButton("❌ Remove Voice")],
-            [KeyboardButton("✅ SLOT 1"), KeyboardButton("✅ SLOT 2")],
-            [KeyboardButton("✅ SLOT 3"), KeyboardButton("✅ SLOT 4")],
-            [KeyboardButton("✅ SLOT 5"), KeyboardButton("✅ SLOT 6")],
-            [KeyboardButton("✅ SLOT 7")],
-            [KeyboardButton("❌ Remove SLOT 1"), KeyboardButton("❌ Remove SLOT 2")],
-            [KeyboardButton("❌ Remove SLOT 3"), KeyboardButton("❌ Remove SLOT 4")],
-            [KeyboardButton("❌ Remove SLOT 5"), KeyboardButton("❌ Remove SLOT 6")],
-            [KeyboardButton("❌ Remove SLOT 7")],
-            [KeyboardButton("✅ Verify"), KeyboardButton("❌ Remove Verify")],
-            [KeyboardButton("📴 Set Offline Channel"), KeyboardButton("❌ Remove Offline Channel")],
-            [KeyboardButton("🧹 Clear Cache")],
-            [KeyboardButton("🛡️ ADMIN PANEL")]
-        ],
-        resize_keyboard=True
-    )
+app = Client("Sarkar_7Slot_Bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
 
-def setup_admin_handlers(app, OWNER_ID, start_panel_func):
+# Initialize Database
+init_db()
 
-    @app.on_message(filters.command("admin"))
-    async def admin_cmd(client, message: Message):
-        user_id = message.from_user.id
-        if is_owner(user_id, OWNER_ID):
-            await message.reply_text("👑 <b>OWNER CONTROL PANEL ACTIVE</b>", reply_markup=get_owner_keyboard(), parse_mode=enums.ParseMode.HTML)
-        elif is_admin(user_id, OWNER_ID):
-            await message.reply_text("🛡️ <b>ADMIN CONTROL PANEL ACTIVE</b>", reply_markup=get_admin_keyboard(), parse_mode=enums.ParseMode.HTML)
-        else:
-            await message.reply_text("❌ Access Denied")
-
-    @app.on_message(filters.private & ~filters.command(["start", "admin"]))
-    async def handle_admin_buttons(client, message: Message):
-        user_id = message.from_user.id
-        text = message.text or ""
-        state = user_states.get(user_id)
-
-        if not is_admin(user_id, OWNER_ID):
-            return
-
-        # OWNER-ONLY BUTTONS
-        if is_owner(user_id, OWNER_ID):
-            if text == "➕ Add Admin":
-                user_states[user_id] = "ADD_ADMIN"
-                return await message.reply_text("👤 Send Telegram User ID of new Admin:")
-            elif text == "❌ Remove Admin":
-                user_states[user_id] = "DEL_ADMIN"
-                return await message.reply_text("🗑️ Send Telegram User ID to remove Admin:")
-            elif text == "📋 Admin List":
-                admins = get_db("SELECT user_id FROM admins")
-                ad_list = "\n".join([f"• <code>{a[0]}</code>" for a in admins]) or "No admins added."
-                return await message.reply_text(f"📋 <b>ADMIN LIST:</b>\n\nOwner: <code>{OWNER_ID}</code>\n\n{ad_list}", parse_mode=enums.ParseMode.HTML)
-            elif text == "🗑️ Clear Stats User":
-                get_db("DELETE FROM users", commit=True)
-                return await message.reply_text("✅ All user stats cleared!")
-            elif text == "📢 Broadcast":
-                user_states[user_id] = "BROADCAST"
-                return await message.reply_text("📢 Send broadcast message:")
-            elif text == "📊 Broadcast Status":
-                return await message.reply_text("📊 Broadcast System Ready.")
-            elif text == "⛔ Stop Broadcast":
-                return await message.reply_text("⛔ Broadcast Stopped.")
-
-        # SHARED CONTROL BUTTONS
-        if text in ["👑 OWNER PANEL", "🛡️ ADMIN PANEL"]:
-            kb = get_owner_keyboard() if is_owner(user_id, OWNER_ID) else get_admin_keyboard()
-            return await message.reply_text("✅ Panel refreshed.", reply_markup=kb)
-
-        elif text == "👥 Stats User":
-            count = get_db("SELECT COUNT(*) FROM users", one=True)[0]
-            return await message.reply_text(f"👥 <b>Total Users:</b> <code>{count}</code>", parse_mode=enums.ParseMode.HTML)
-
-        elif text == "❌ Bot Offline":
-            set_setting("bot_status", "offline")
-            return await message.reply_text("❌ Bot is now <b>Offline</b>.", parse_mode=enums.ParseMode.HTML)
-
-        elif text == "✅ Bot Online":
-            set_setting("bot_status", "online")
-            return await message.reply_text("✅ Bot is now <b>Online</b>.", parse_mode=enums.ParseMode.HTML)
-
-        elif text == "🚀 Start Bot":
-            await start_panel_func(client, message, user_id)
-
-        elif text == "✏️ Set Text Promo":
-            user_states[user_id] = "SET_PROMO"
-            return await message.reply_text("✏️ Send new Promo Text for <code>/start</code>:", parse_mode=enums.ParseMode.HTML)
-
-        elif text == "❌ Remove Promo Text":
-            set_setting("promo_text", None)
-            return await message.reply_text("✅ Promo text reset to default.")
-
-        elif text == "🔑 Set GET KEY Link":
-            user_states[user_id] = "SET_GET_KEY"
-            return await message.reply_text("🔑 Send your GET KEY URL:")
-
-        elif text == "❌ Remove GET KEY Link":
-            set_setting("get_key_url", None)
-            return await message.reply_text("✅ GET KEY link removed.")
-
-        elif text == "🖼️ Set DP":
-            user_states[user_id] = "SET_DP"
-            return await message.reply_text("🖼️ Send Banner Photo or Video:")
-
-        elif text == "❌ Remove DP":
-            set_setting("media_type", None)
-            set_setting("media_file_id", None)
-            return await message.reply_text("✅ Banner DP/Video removed.")
-
-        elif text == "🔗 Set Click Here":
-            user_states[user_id] = "SET_CLICK"
-            return await message.reply_text("🔗 Send format: <code>Button Name | https://link.com</code>", parse_mode=enums.ParseMode.HTML)
-
-        elif text == "❌ Remove Click Here Link":
-            set_setting("click_name", None)
-            set_setting("click_url", None)
-            return await message.reply_text("✅ Custom Click Link removed.")
-
-        elif text == "🎙️ Set Voice":
-            user_states[user_id] = "SET_VOICE"
-            return await message.reply_text("🎙️ Record & send a Voice Note:")
-
-        elif text == "❌ Remove Voice":
-            set_setting("voice_file_id", None)
-            return await message.reply_text("✅ Voice Note removed.")
-
-        elif text.startswith("✅ SLOT "):
-            slot_num = text.replace("✅ SLOT ", "").strip()
-            user_states[user_id] = f"SET_SLOT_{slot_num}"
-            return await message.reply_text(f"⚙️ Send Slot {slot_num} Link or Details:\n• Direct Link: <code>https://t.me/...</code>\n• Full Format: <code>ChatID | Name | Link</code>", parse_mode=enums.ParseMode.HTML)
-
-        elif text.startswith("❌ Remove SLOT "):
-            slot_num = text.replace("❌ Remove SLOT ", "").strip()
-            get_db("UPDATE slots SET chat_id='', name='', link='' WHERE id=?", (slot_num,), commit=True)
-            return await message.reply_text(f"✅ SLOT {slot_num} Removed!")
-
-        elif text == "📴 Set Offline Channel":
-            user_states[user_id] = "SET_OFFLINE_CHAN"
-            return await message.reply_text("📴 Send Offline Channel link:")
-
-        elif text == "❌ Remove Offline Channel":
-            set_setting("offline_channel", None)
-            return await message.reply_text("✅ Offline channel link reset.")
-
-        elif text == "🧹 Clear Cache":
-            return await message.reply_text("🧹 Cache cleared successfully!")
-
-        # STATE PROCESSING LOGIC
-        if state == "ADD_ADMIN" and is_owner(user_id, OWNER_ID):
-            try:
-                aid = int(text.strip())
-                get_db("INSERT OR IGNORE INTO admins (user_id) VALUES (?)", (aid,), commit=True)
-                user_states.pop(user_id, None)
-                return await message.reply_text(f"✅ Admin <code>{aid}</code> Added!", parse_mode=enums.ParseMode.HTML)
-            except Exception:
-                return await message.reply_text("❌ Send numeric User ID!")
-
-        elif state == "DEL_ADMIN" and is_owner(user_id, OWNER_ID):
-            try:
-                aid = int(text.strip())
-                get_db("DELETE FROM admins WHERE user_id=?", (aid,), commit=True)
-                user_states.pop(user_id, None)
-                return await message.reply_text(f"✅ Admin <code>{aid}</code> Removed!", parse_mode=enums.ParseMode.HTML)
-            except Exception:
-                return await message.reply_text("❌ Send numeric User ID!")
-
-        elif state == "SET_DP":
-            if message.photo:
-                set_setting("media_type", "photo")
-                set_setting("media_file_id", message.photo.file_id)
-                user_states.pop(user_id, None)
-                return await message.reply_text("✅ Photo DP Banner Updated!")
-            elif message.video:
-                set_setting("media_type", "video")
-                set_setting("media_file_id", message.video.file_id)
-                user_states.pop(user_id, None)
-                return await message.reply_text("✅ Video Banner Updated!")
-
-        elif state == "SET_VOICE":
-            if message.voice:
-                set_setting("voice_file_id", message.voice.file_id)
-                user_states.pop(user_id, None)
-                return await message.reply_text("✅ Voice Note Updated!")
-
-        elif state == "SET_PROMO":
-            set_setting("promo_text", text)
-            user_states.pop(user_id, None)
-            return await message.reply_text("✅ Promo Text Updated!")
-
-        elif state == "SET_GET_KEY":
-            set_setting("get_key_url", text.strip())
-            user_states.pop(user_id, None)
-            return await message.reply_text("✅ GET KEY Link Saved!")
-
-        elif state == "SET_CLICK":
-            try:
-                p = [x.strip() for x in text.split("|")]
-                set_setting("click_name", p[0])
-                set_setting("click_url", p[1])
-                user_states.pop(user_id, None)
-                return await message.reply_text("✅ Custom Link Updated!")
-            except Exception:
-                return await message.reply_text("❌ Format: <code>Name | https://link.com</code>", parse_mode=enums.ParseMode.HTML)
-
-        elif state == "SET_OFFLINE_CHAN":
-            set_setting("offline_channel", text.strip())
-            user_states.pop(user_id, None)
-            return await message.reply_text("✅ Offline Channel Link Saved!")
-
-        elif state and state.startswith("SET_SLOT_"):
-            slot_id = int(state.replace("SET_SLOT_", ""))
-            parts = [x.strip() for x in text.split("|")]
-            
-            chat_id = ""
-            name = f"Channel {slot_id}"
-            link = ""
-
-            if len(parts) == 3:
-                chat_id, name, link = parts[0], parts[1], parts[2]
-            elif len(parts) == 2:
-                if parts[0].startswith("-100") or parts[0].isdigit():
-                    chat_id, link = parts[0], parts[1]
-                else:
-                    name, link = parts[0], parts[1]
-            elif len(parts) == 1:
-                link = parts[0]
-                if "t.me/" in link and not "+" in link and not "joinchat" in link:
-                    clean_name = link.split("t.me/")[-1].replace("@", "").split("/")[0]
-                    if clean_name:
-                        chat_id = f"@{clean_name}"
-
-            if "t.me" in link or "telegram.me" in link:
-                get_db("UPDATE slots SET chat_id=?, name=?, link=? WHERE id=?", (chat_id, name, link, slot_id), commit=True)
-                user_states.pop(user_id, None)
-                return await message.reply_text(
-                    f"✅ <b>SLOT {slot_id} Saved Successfully!</b>\n\n"
-                    f"📌 <b>Name:</b> <code>{name}</code>\n"
-                    f"🆔 <b>ChatID:</b> <code>{chat_id or 'Auto/Direct Link'}</code>\n"
-                    f"🔗 <b>Link:</b> {link}",
-                    parse_mode=enums.ParseMode.HTML
-                )
-            else:
-                return await message.reply_text("❌ Kripya valid Telegram link (<code>https://t.me/...</code>) bhejein!", parse_mode=enums.ParseMode.HTML)
-
-        elif state == "BROADCAST" and is_owner(user_id, OWNER_ID):
-            users = get_db("SELECT user_id FROM users")
-            s, f = 0, 0
-            for u in users:
+# ----------------- FORCE SUB CHECKER ----------------- #
+async def check_force_sub(client, user_id):
+    slots = get_db("SELECT id, chat_id, name, link FROM slots ORDER BY id ASC")
+    unjoined = []
+    for slot in slots:
+        s_id, chat_id, name, link = slot
+        if link and link.strip():
+            if chat_id and chat_id.strip():
                 try:
-                    await message.copy(u[0])
-                    s += 1
+                    member = await client.get_chat_member(chat_id.strip(), user_id)
+                    if member.status in [enums.ChatMemberStatus.BANNED, enums.ChatMemberStatus.LEFT]:
+                        unjoined.append((s_id, name or f"Channel {s_id}", link))
                 except Exception:
-                    f += 1
-            user_states.pop(user_id, None)
-            return await message.reply_text(f"📢 <b>Broadcast Finished!</b>\n\n✅ Sent: <code>{s}</code>\n❌ Failed: <code>{f}</code>", parse_mode=enums.ParseMode.HTML)
+                    unjoined.append((s_id, name or f"Channel {s_id}", link))
+            else:
+                unjoined.append((s_id, name or f"Channel {s_id}", link))
+    return unjoined
+
+# ----------------- SEND START LAYOUT ----------------- #
+async def send_start_panel(client, message, user_id):
+    if get_setting("bot_status") == "offline" and not is_admin(user_id, OWNER_ID):
+        offline_chan = get_setting("offline_channel") or "https://t.me"
+        return await message.reply_text(
+            f"🔴 <b>Bot is currently Offline for maintenance.</b>",
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(f"{BTN_PURPLE_STAR} Official Channel ↗", url=offline_chan)]]),
+            parse_mode=enums.ParseMode.HTML
+        )
+
+    default_text = (
+        f"{ICON_FIRE} <b>Welcome SARKAR :: {ICON_SWORDS} :: MOD</b>\n\n"
+        f"{ICON_LOCK} <b>Join All Channels To Unlock {ICON_TELEGRAM}</b>\n\n"
+        "🚴‍♂️ 💧 <b>How To Get Key 💭 📈</b>\n"
+        f"🧐 <b>GET KEY {ICON_KEY}</b>"
+    )
+    custom_text = get_setting("promo_text") or default_text
+    media_file = get_setting("media_file_id")
+    media_type = get_setting("media_type")
+    voice_file = get_setting("voice_file_id")
+    get_key_url = get_setting("get_key_url")
+
+    # 2-Column Buttons Grid Setup
+    inline_buttons = []
+    all_slots = get_db("SELECT id, name, link FROM slots ORDER BY id ASC")
+    active_slots = [s for s in all_slots if s[2] and s[2].strip()]
+
+    for i in range(0, len(active_slots), 2):
+        row = []
+        s1 = active_slots[i]
+        row.append(InlineKeyboardButton(text=f"{BTN_PURPLE_STAR} {s1[1] or f'Channel {s1[0]}'} ↗", url=s1[2]))
+        if i + 1 < len(active_slots):
+            s2 = active_slots[i+1]
+            row.append(InlineKeyboardButton(text=f"{BTN_PURPLE_STAR} {s2[1] or f'Channel {s2[0]}'} ↗", url=s2[2]))
+        inline_buttons.append(row)
+
+    if get_key_url:
+        inline_buttons.append([InlineKeyboardButton(text=f"{ICON_KEY} GET KEY HERE ↗", url=get_key_url)])
+
+    click_name = get_setting("click_name")
+    click_url = get_setting("click_url")
+    if click_name and click_url:
+        inline_buttons.append([InlineKeyboardButton(text=f"{click_name} ↗", url=click_url)])
+
+    inline_buttons.append([InlineKeyboardButton(text=f"{BTN_GREEN_CHECK} Check Joined ↗", callback_data="verify_sub")])
+
+    markup = InlineKeyboardMarkup(inline_buttons)
+
+    if media_type == "photo" and media_file:
+        await client.send_photo(message.chat.id, photo=media_file, caption=custom_text, reply_markup=markup, parse_mode=enums.ParseMode.HTML)
+    elif media_type == "video" and media_file:
+        await client.send_video(message.chat.id, video=media_file, caption=custom_text, reply_markup=markup, parse_mode=enums.ParseMode.HTML)
+    else:
+        await client.send_message(message.chat.id, text=custom_text, reply_markup=markup, parse_mode=enums.ParseMode.HTML)
+
+    if voice_file:
+        await client.send_voice(message.chat.id, voice=voice_file)
+
+# ----------------- COMMANDS & CALLBACKS ----------------- #
+@app.on_message(filters.command("start"))
+async def start_cmd(client, message: Message):
+    user_id = message.from_user.id
+    get_db("INSERT OR IGNORE INTO users (user_id) VALUES (?)", (user_id,), commit=True)
+    user_states.pop(user_id, None)
+    await send_start_panel(client, message, user_id)
+
+@app.on_callback_query(filters.regex("verify_sub"))
+async def verify_cb(client, callback: CallbackQuery):
+    user_id = callback.from_user.id
+    unjoined = await check_force_sub(client, user_id)
+    if unjoined:
+        await callback.answer("❌ Aapne abhi tak saare channels join nahi kiye!", show_alert=True)
+    else:
+        await callback.answer("✅ Verified Successfully!", show_alert=False)
+        get_key_url = get_setting("get_key_url")
+        key_msg = f"🎉 <b>SUCCESS! All channels verified.</b>"
+        if get_key_url:
+            key_msg += f"\n\n🔑 <b>Your Key Link:</b> {get_key_url}"
+            
+        await callback.message.delete()
+        await client.send_message(callback.message.chat.id, key_msg, parse_mode=enums.ParseMode.HTML)
+
+# Setup Admin Control Handlers from admin.py
+setup_admin_handlers(app, OWNER_ID, send_start_panel)
+
+# ----------------- START BOT ----------------- #
+if __name__ == "__main__":
+    print("Bot Starting...")
+    app.run()
