@@ -1,481 +1,345 @@
 import os
 import sqlite3
-import asyncio
 from pyrogram import Client, filters, enums
 from pyrogram.types import (
-    InlineKeyboardMarkup, InlineKeyboardButton, Message, CallbackQuery
+    InlineKeyboardMarkup, InlineKeyboardButton,
+    ReplyKeyboardMarkup, KeyboardButton, Message
 )
-from pyrogram.errors import (
-    UserNotParticipant, ChatAdminRequired, ChannelInvalid, PeerIdInvalid
-)
+from pyrogram.errors import UserNotParticipant
 
-# Configs (Heroku Environment Variables)
+# ----------------- CONFIGURATION ----------------- #
 API_ID = int(os.environ.get("API_ID", "0"))
 API_HASH = os.environ.get("API_HASH", "")
 BOT_TOKEN = os.environ.get("BOT_TOKEN", "")
 OWNER_ID = int(os.environ.get("OWNER_ID", "0"))
 
-app = Client("full_control_fsub_bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
+app = Client("Sarkar_7Slot_Bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
 
-# ================= DATABASE SETUP =================
-conn = sqlite3.connect("bot_database.db", check_same_thread=False)
-cursor = conn.cursor()
-
-# Table for 7 Slots
-cursor.execute("""
-CREATE TABLE IF NOT EXISTS channels (
-    slot_id INTEGER PRIMARY KEY,
-    chat_id TEXT,
-    name TEXT,
-    link TEXT
-)
-""")
-
-cursor.execute("""
-CREATE TABLE IF NOT EXISTS admins (
-    user_id INTEGER PRIMARY KEY
-)
-""")
-
-cursor.execute("""
-CREATE TABLE IF NOT EXISTS settings (
-    key TEXT PRIMARY KEY,
-    value TEXT
-)
-""")
-
-cursor.execute("""
-CREATE TABLE IF NOT EXISTS users (
-    user_id INTEGER PRIMARY KEY
-)
-""")
-conn.commit()
-
-# Settings Helper Functions
-def get_setting(key, default=""):
-    cursor.execute("SELECT value FROM settings WHERE key=?", (key,))
-    row = cursor.fetchone()
-    return row[0] if row else default
-
-def set_setting(key, value):
-    cursor.execute("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", (key, str(value)))
+# ----------------- DATABASE SETUP ----------------- #
+def init_db():
+    conn = sqlite3.connect("bot.db")
+    cur = conn.cursor()
+    cur.execute("CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, val TEXT)")
+    cur.execute("CREATE TABLE IF NOT EXISTS slots (id INTEGER PRIMARY KEY, chat_id TEXT, name TEXT, link TEXT)")
+    cur.execute("CREATE TABLE IF NOT EXISTS admins (user_id INTEGER PRIMARY KEY)")
+    cur.execute("CREATE TABLE IF NOT EXISTS users (user_id INTEGER PRIMARY KEY)")
+    
+    # Initialize default 7 empty slots if not created
+    for i in range(1, 8):
+        cur.execute("INSERT OR IGNORE INTO slots (id, chat_id, name, link) VALUES (?, '', '', '')", (i,))
+    
     conn.commit()
+    conn.close()
 
-def del_setting(key):
-    cursor.execute("DELETE FROM settings WHERE key=?", (key,))
-    conn.commit()
+init_db()
 
-# Ensure Owner is Admin
-cursor.execute("INSERT OR IGNORE INTO admins (user_id) VALUES (?)", (OWNER_ID,))
-conn.commit()
+def get_db(sql, params=(), one=False, commit=False):
+    conn = sqlite3.connect("bot.db")
+    cur = conn.cursor()
+    cur.execute(sql, params)
+    if commit:
+        conn.commit()
+        res = True
+    else:
+        res = cur.fetchone() if one else cur.fetchall()
+    conn.close()
+    return res
 
-def is_admin(user_id: int) -> bool:
+def get_setting(key, default=None):
+    res = get_db("SELECT val FROM settings WHERE key=?", (key,), one=True)
+    return res[0] if res else default
+
+def set_setting(key, val):
+    if val is None:
+        get_db("DELETE FROM settings WHERE key=?", (key,), commit=True)
+    else:
+        get_db("INSERT OR REPLACE INTO settings (key, val) VALUES (?, ?)", (key, str(val)), commit=True)
+
+def is_admin(user_id):
     if user_id == OWNER_ID:
         return True
-    cursor.execute("SELECT user_id FROM admins WHERE user_id=?", (user_id,))
-    return cursor.fetchone() is not None
+    res = get_db("SELECT user_id FROM admins WHERE user_id=?", (user_id,), one=True)
+    return bool(res)
 
-def add_user(user_id: int):
-    cursor.execute("INSERT OR IGNORE INTO users (user_id) VALUES (?)", (user_id,))
-    conn.commit()
+# ----------------- ADMIN BOTTOM KEYBOARD ----------------- #
+ADMIN_KEYBOARD = ReplyKeyboardMarkup(
+    [
+        [KeyboardButton("⚙️ Manage Slots (1-7)"), KeyboardButton("🖼️ Set DP/Video")],
+        [KeyboardButton("🗑️ Remove DP/Video"), KeyboardButton("🎙️ Set Voice Note")],
+        [KeyboardButton("🗑️ Remove Voice Note"), KeyboardButton("🔗 Set Click Link")],
+        [KeyboardButton("🗑️ Remove Click Link"), KeyboardButton("✍️ Set Main Text")],
+        [KeyboardButton("🔄 Reset Main Text"), KeyboardButton("👤 Add Admin")],
+        [KeyboardButton("🗑️ Del Admin"), KeyboardButton("📊 Stats")],
+        [KeyboardButton("📢 Broadcast")]
+    ],
+    resize_keyboard=True
+)
 
-# ================= FSUB CHECKING ENGINE =================
-async def check_all_7_channels(client: Client, user_id: int) -> bool:
-    if is_admin(user_id):
-        return True
-        
-    cursor.execute("SELECT chat_id FROM channels WHERE chat_id IS NOT NULL AND chat_id != ''")
-    rows = cursor.fetchall()
-    
-    if not rows:
-        return True
+# User states dictionary for step-by-step inputs
+user_states = {}
 
-    for (chat_target,) in rows:
-        try:
-            target = int(chat_target) if (chat_target.startswith("-100") or chat_target.lstrip("-").isdigit()) else chat_target
-            member = await client.get_chat_member(target, user_id)
-            if member.status in [enums.ChatMemberStatus.BANNED, enums.ChatMemberStatus.RESTRICTED, enums.ChatMemberStatus.LEFT]:
-                return False
-        except UserNotParticipant:
-            return False
-        except (ChatAdminRequired, ChannelInvalid, PeerIdInvalid):
-            continue
-        except Exception:
-            continue
-    return True
+# ----------------- FORCE SUB CHECKER ----------------- #
+async def check_force_sub(client, user_id):
+    slots = get_db("SELECT id, chat_id, name, link FROM slots ORDER BY id ASC")
+    unjoined = []
+    for slot in slots:
+        s_id, chat_id, name, link = slot
+        if chat_id and chat_id.strip():
+            try:
+                member = await client.get_chat_member(chat_id.strip(), user_id)
+                if member.status in [enums.ChatMemberStatus.BANNED, enums.ChatMemberStatus.LEFT]:
+                    unjoined.append((name or f"Slot {s_id}", link))
+            except Exception:
+                unjoined.append((name or f"Slot {s_id}", link))
+    return unjoined
 
-def build_user_keyboard():
-    cursor.execute("SELECT slot_id, name, link FROM channels ORDER BY slot_id ASC")
-    slots = cursor.fetchall()
-    
-    emojis = ["💜", "⚡", "🔥", "🚀", "👑", "💎", "🎯"]
-    slot_dict = {s[0]: s for s in slots}
-    
-    buttons = []
-    row1, row2, row3 = [], [], []
-    
-    # Active Channels Keyboard Grid (Slot 1 to 7)
-    for i in range(1, 8):
-        emoji = emojis[(i - 1) % len(emojis)]
-        if i in slot_dict and slot_dict[i][1] and slot_dict[i][2]:
-            btn_text = f"{emoji} {slot_dict[i][1]}"
-            btn_url = slot_dict[i][2]
-            btn = InlineKeyboardButton(btn_text, url=btn_url)
-            
-            if i in [1, 2]:
-                row1.append(btn)
-            elif i in [3, 4]:
-                row2.append(btn)
-            elif i in [5, 6]:
-                row3.append(btn)
-            elif i == 7:
-                row3.append(btn)
+# ----------------- SEND VERIFIED / START BANNER ----------------- #
+async def send_welcome_content(client, message, user_id):
+    media_type = get_setting("media_type")
+    media_id = get_setting("media_file_id")
+    voice_id = get_setting("voice_file_id")
+    custom_text = get_setting("custom_text") or "🎉 **SUCCESS! ALL CHANNELS VERIFIED!**\n\nWelcome to the official panel."
+    click_name = get_setting("click_btn_name")
+    click_url = get_setting("click_btn_url")
 
-    if row1: buttons.append(row1)
-    if row2: buttons.append(row2)
-    if row3: buttons.append(row3)
+    # Inline Click Button (if configured)
+    inline_markup = None
+    if click_name and click_url:
+        inline_markup = InlineKeyboardMarkup([[InlineKeyboardButton(text=click_name, url=click_url)]])
 
-    # Click Here Button (If enabled by admin)
-    click_link = get_setting("click_here_link", "")
-    click_text = get_setting("click_here_text", "👉 Click Here")
-    if click_link:
-        buttons.append([InlineKeyboardButton(click_text, url=click_link)])
+    # Bottom Reply Keyboard for Admin
+    reply_box = ADMIN_KEYBOARD if is_admin(user_id) else None
 
-    # Always present Verify Button
-    buttons.append([InlineKeyboardButton("✅ Check Joined", callback_data="check_joined_sub")])
-    return InlineKeyboardMarkup(buttons)
-
-# ================= USER /START HANDLER =================
-@app.on_message(filters.command("start") & filters.private)
-async def start_handler(client: Client, message: Message):
-    user_id = message.from_user.id
-    add_user(user_id)
-    
-    is_joined = await check_all_7_channels(client, user_id)
-    
-    if is_joined:
-        await send_unlocked_panel(message)
+    # Send Banner Photo / Video if set
+    if media_type == "photo" and media_id:
+        await client.send_photo(
+            chat_id=message.chat.id,
+            photo=media_id,
+            caption=custom_text,
+            reply_markup=inline_markup
+        )
+    elif media_type == "video" and media_id:
+        await client.send_video(
+            chat_id=message.chat.id,
+            video=media_id,
+            caption=custom_text,
+            reply_markup=inline_markup
+        )
     else:
-        start_text = get_setting("start_text", (
-            f"🔥 <b>Welcome {message.from_user.first_name}!</b>\n\n"
-            f"🚫 <b>Join All Channels To Unlock Access</b> 🌐\n\n"
-            f"👇 <i>Neeche diye gaye sabhi channels join karke 'Check Joined' par click karein.</i>"
-        ))
-        
-        media_type = get_setting("media_type", "")
-        media_id = get_setting("media_id", "")
-        voice_id = get_setting("voice_id", "")
-        
-        # 1. Voice Note (If set)
-        if voice_id:
-            try:
-                await message.reply_voice(voice=voice_id)
-            except Exception:
-                pass
-
-        # 2. DP/Video Banner or Text + Inline Buttons
-        keyboard = build_user_keyboard()
-        if media_type == "photo" and media_id:
-            try:
-                await message.reply_photo(photo=media_id, caption=start_text, reply_markup=keyboard)
-                return
-            except Exception:
-                pass
-        elif media_type == "video" and media_id:
-            try:
-                await message.reply_video(video=media_id, caption=start_text, reply_markup=keyboard)
-                return
-            except Exception:
-                pass
-                
-        await message.reply_text(text=start_text, reply_markup=keyboard)
-
-# Verify Callback
-@app.on_callback_query(filters.regex("check_joined_sub"))
-async def verify_cb(client: Client, cb: CallbackQuery):
-    user_id = cb.from_user.id
-    is_joined = await check_all_7_channels(client, user_id)
-    
-    if not is_joined:
-        await cb.answer("❌ Aapne saare channels join nahi kiye! Pehle join karein.", show_alert=True)
-        return
-        
-    await cb.answer("✅ Verified Successfully!")
-    
-    success_text = get_setting("success_text", "🎉 <b>SUCCESS! ALL CHANNELS VERIFIED!</b>\n\nWelcome to the official panel.")
-    
-    if cb.message.photo or cb.message.video:
-        await cb.message.edit_caption(caption=success_text)
-    else:
-        await cb.message.edit_text(text=success_text)
-
-async def send_unlocked_panel(message: Message):
-    success_text = get_setting("success_text", "🎉 <b>SUCCESS! ALL CHANNELS VERIFIED!</b>\n\nWelcome to the official panel.")
-    await message.reply_text(success_text)
-
-# ================= ADMIN CONTROL PANEL =================
-@app.on_message(filters.command("admin") & filters.private)
-async def admin_panel(client: Client, message: Message):
-    if not is_admin(message.from_user.id):
-        return
-        
-    buttons = InlineKeyboardMarkup([
-        [
-            InlineKeyboardButton("⚙️ Manage Slots (1-7)", callback_data="admin_manage_slots")
-        ],
-        [
-            InlineKeyboardButton("🖼️ Set DP/Video", callback_data="admin_set_media"),
-            InlineKeyboardButton("🗑️ Remove DP/Video", callback_data="admin_del_media")
-        ],
-        [
-            InlineKeyboardButton("🎙️ Set Voice Note", callback_data="admin_set_voice"),
-            InlineKeyboardButton("🗑️ Remove Voice Note", callback_data="admin_del_voice")
-        ],
-        [
-            InlineKeyboardButton("🔗 Set Click Link", callback_data="admin_set_click_link"),
-            InlineKeyboardButton("🗑️ Remove Click Link", callback_data="admin_del_click_link")
-        ],
-        [
-            InlineKeyboardButton("✍️ Set Main Text", callback_data="admin_set_text"),
-            InlineKeyboardButton("🔄 Reset Main Text", callback_data="admin_reset_text")
-        ],
-        [
-            InlineKeyboardButton("👤 Add Admin", callback_data="admin_add_admin"),
-            InlineKeyboardButton("🗑️ Del Admin", callback_data="admin_del_admin")
-        ],
-        [
-            InlineKeyboardButton("📊 Stats", callback_data="admin_stats"),
-            InlineKeyboardButton("📢 Broadcast", callback_data="admin_broadcast")
-        ]
-    ])
-    
-    await message.reply_text("👑 <b>FULL ADMIN CONTROL PANEL (SET & REMOVE)</b>\n\nChoose an option to edit or reset:", reply_markup=buttons)
-
-ADMIN_STEPS = {}
-
-@app.on_callback_query(filters.regex("^admin_"))
-async def admin_callbacks(client: Client, cb: CallbackQuery):
-    user_id = cb.from_user.id
-    if not is_admin(user_id):
-        await cb.answer("❌ Access Denied!", show_alert=True)
-        return
-
-    data = cb.data
-
-    # Channel Slot Management
-    if data == "admin_manage_slots":
-        cursor.execute("SELECT slot_id, name FROM channels")
-        active_slots = {row[0]: row[1] for row in cursor.fetchall()}
-        
-        buttons = []
-        for slot in range(1, 8):
-            status = f"✅ ({active_slots[slot]})" if slot in active_slots else "❌ Empty"
-            buttons.append([
-                InlineKeyboardButton(f"Slot {slot}: {status}", callback_data=f"view_slot_{slot}")
-            ])
-        buttons.append([InlineKeyboardButton("« Back to Admin Panel", callback_data="admin_back")])
-        await cb.message.edit_text("Select a Slot (1 to 7) to Set or Clear:", reply_markup=InlineKeyboardMarkup(buttons))
-
-    elif data == "admin_back":
-        await admin_panel(client, cb.message)
-
-    # Set / Remove DP & Video Banner
-    elif data == "admin_set_media":
-        ADMIN_STEPS[user_id] = "set_media"
-        await cb.message.reply_text("🖼️ Send Photo ya Video jise Bot Banner banana hai:")
-
-    elif data == "admin_del_media":
-        del_setting("media_type")
-        del_setting("media_id")
-        await cb.answer("✅ DP/Video Banner Removed!", show_alert=True)
-
-    # Set / Remove Voice Note
-    elif data == "admin_set_voice":
-        ADMIN_STEPS[user_id] = "set_voice"
-        await cb.message.reply_text("🎙️ Send Voice Note jise /start par play karna hai:")
-
-    elif data == "admin_del_voice":
-        del_setting("voice_id")
-        await cb.answer("✅ Voice Note Removed!", show_alert=True)
-
-    # Set / Remove Click Here Link
-    elif data == "admin_set_click_link":
-        ADMIN_STEPS[user_id] = "set_click_link"
-        await cb.message.reply_text(
-            "🔗 Send Click Link details in format:\n"
-            "<code>Button Name|URL</code>\n\n"
-            "<b>Example:</b>\n"
-            "<code>👉 Click Here|https://t.me/SARKAR_MODS</code>"
+        await client.send_message(
+            chat_id=message.chat.id,
+            text=custom_text,
+            reply_markup=inline_markup
         )
 
-    elif data == "admin_del_click_link":
-        del_setting("click_here_text")
-        del_setting("click_here_link")
-        await cb.answer("✅ Click Here Link Button Removed!", show_alert=True)
+    # Send Voice Note if set
+    if voice_id:
+        await client.send_voice(chat_id=message.chat.id, voice=voice_id)
 
-    # Set / Reset Main Text
-    elif data == "admin_set_text":
-        ADMIN_STEPS[user_id] = "set_text"
-        await cb.message.reply_text("✍️ Send new <b>Main Text</b> for /start:")
+    # Show Admin Bottom Keyboard if User is Admin
+    if is_admin(user_id):
+        await client.send_message(
+            chat_id=message.chat.id,
+            text="👑 **ADMIN CONTROL PANEL ACTIVE** (Niche keyboard box me options hain)",
+            reply_markup=reply_box
+        )
 
-    elif data == "admin_reset_text":
-        del_setting("start_text")
-        await cb.answer("✅ Main Text Reset to Default!", show_alert=True)
+# ----------------- START COMMAND ----------------- #
+@app.on_message(filters.command("start"))
+async def start_cmd(client, message: Message):
+    user_id = message.from_user.id
+    get_db("INSERT OR IGNORE INTO users (user_id) VALUES (?)", (user_id,), commit=True)
+    user_states.pop(user_id, None)
 
-    # Add / Remove Admin
-    elif data == "admin_add_admin":
-        if user_id != OWNER_ID:
-            await cb.answer("Only Owner can add admins!", show_alert=True)
-            return
-        ADMIN_STEPS[user_id] = "add_admin"
-        await cb.message.reply_text("👤 Send Telegram <b>User ID</b> of new Admin:")
+    unjoined = await check_force_sub(client, user_id)
 
-    elif data == "admin_del_admin":
-        if user_id != OWNER_ID:
-            await cb.answer("Only Owner can remove admins!", show_alert=True)
-            return
-        cursor.execute("SELECT user_id FROM admins WHERE user_id != ?", (OWNER_ID,))
-        admins = cursor.fetchall()
-        if not admins:
-            await cb.answer("No secondary admins found!", show_alert=True)
-            return
-        buttons = [[InlineKeyboardButton(f"❌ {uid}", callback_data=f"deladm_{uid}")] for (uid,) in admins]
-        buttons.append([InlineKeyboardButton("« Back", callback_data="admin_back")])
-        await cb.message.edit_text("Select Admin to remove:", reply_markup=InlineKeyboardMarkup(buttons))
+    if unjoined:
+        buttons = []
+        for name, link in unjoined:
+            buttons.append([InlineKeyboardButton(text=f"📌 Join {name}", url=link)])
+        buttons.append([InlineKeyboardButton(text="✅ VERIFY / JOINED", callback_data="verify_sub")])
 
-    # Stats & Broadcast
-    elif data == "admin_stats":
-        cursor.execute("SELECT COUNT(*) FROM users")
-        total_users = cursor.fetchone()[0]
-        await cb.answer(f"📊 Total Users: {total_users}", show_alert=True)
-
-    elif data == "admin_broadcast":
-        ADMIN_STEPS[user_id] = "broadcast"
-        await cb.message.reply_text("📢 Send message to Broadcast:")
-
-# Individual Slot Menu (Set / Clear)
-@app.on_callback_query(filters.regex("^view_slot_"))
-async def view_slot_cb(client: Client, cb: CallbackQuery):
-    slot_num = int(cb.data.replace("view_slot_", ""))
-    cursor.execute("SELECT name, link, chat_id FROM channels WHERE slot_id=?", (slot_num,))
-    row = cursor.fetchone()
-
-    if row:
-        info = f"📢 <b>Slot {slot_num} Configured:</b>\nName: {row[0]}\nLink: {row[1]}\nChat ID: {row[2]}"
+        await message.reply_text(
+            "⚠️ **Aapko pehle humare sabhi channels join karne honge!**\n\nNiche diye gaye buttons par click karke join karein aur 'VERIFY' dabayein:",
+            reply_markup=InlineKeyboardMarkup(buttons)
+        )
     else:
-        info = f"📢 <b>Slot {slot_num} is currently Empty.</b>"
+        await send_welcome_content(client, message, user_id)
 
-    buttons = InlineKeyboardMarkup([
-        [InlineKeyboardButton(f"✏️ Set / Edit Slot {slot_num}", callback_data=f"edit_slot_btn_{slot_num}")],
-        [InlineKeyboardButton(f"🗑️ Clear / Remove Slot {slot_num}", callback_data=f"clear_slot_btn_{slot_num}")],
-        [InlineKeyboardButton("« Back to Slots", callback_data="admin_manage_slots")]
-    ])
-    await cb.message.edit_text(info, reply_markup=buttons)
+# ----------------- VERIFY CALLBACK ----------------- #
+@app.on_callback_query(filters.regex("verify_sub"))
+async def verify_cb(client, callback):
+    user_id = callback.from_user.id
+    unjoined = await check_force_sub(client, user_id)
 
-@app.on_callback_query(filters.regex("^edit_slot_btn_"))
-async def edit_slot_click(client: Client, cb: CallbackQuery):
-    slot_num = int(cb.data.replace("edit_slot_btn_", ""))
-    ADMIN_STEPS[cb.from_user.id] = f"edit_slot_{slot_num}"
-    await cb.message.reply_text(
-        f"📢 Send details for <b>Slot {slot_num}</b> in format:\n"
-        f"<code>ChatID|ButtonName|InviteLink</code>\n\n"
-        f"<b>Example:</b>\n"
-        f"<code>-1001234567890|Channel {slot_num}|https://t.me/SARKAR_MODS</code>"
+    if unjoined:
+        await callback.answer("❌ Aapne abhi tak saare channels join nahi kiye!", show_alert=True)
+    else:
+        await callback.message.delete()
+        await send_welcome_content(client, callback.message, user_id)
+
+# ----------------- ADMIN COMMAND ----------------- #
+@app.on_message(filters.command("admin"))
+async def admin_cmd(client, message: Message):
+    user_id = message.from_user.id
+    if not is_admin(user_id):
+        return await message.reply_text("❌ Aap admin nahi hain!")
+    
+    await message.reply_text(
+        "👑 **FULL ADMIN CONTROL PANEL**\n\nNiche box keyboard me se option select karein:",
+        reply_markup=ADMIN_KEYBOARD
     )
 
-@app.on_callback_query(filters.regex("^clear_slot_btn_"))
-async def clear_slot_click(client: Client, cb: CallbackQuery):
-    slot_num = int(cb.data.replace("clear_slot_btn_", ""))
-    cursor.execute("DELETE FROM channels WHERE slot_id=?", (slot_num,))
-    conn.commit()
-    await cb.answer(f"✅ Slot {slot_num} Removed!", show_alert=True)
-    await admin_callbacks(client, cb)
-
-@app.on_callback_query(filters.regex("^deladm_"))
-async def del_adm_cb(client: Client, cb: CallbackQuery):
-    uid = int(cb.data.replace("deladm_", ""))
-    cursor.execute("DELETE FROM admins WHERE user_id=?", (uid,))
-    conn.commit()
-    await cb.answer("✅ Admin Removed!", show_alert=True)
-    await admin_panel(client, cb.message)
-
-# Handle Admin Text / Media Inputs
+# ----------------- REPLIES & BUTTON HANDLERS ----------------- #
 @app.on_message(filters.private & ~filters.command(["start", "admin"]))
-async def handle_admin_inputs(client: Client, message: Message):
+async def handle_admin_inputs(client, message: Message):
     user_id = message.from_user.id
-    if user_id not in ADMIN_STEPS or not is_admin(user_id):
+    text = message.text or ""
+    state = user_states.get(user_id)
+
+    if not is_admin(user_id):
         return
 
-    step = ADMIN_STEPS.pop(user_id)
+    # --- ADMIN KEYBOARD BUTTON PRESSES ---
+    if text == "⚙️ Manage Slots (1-7)":
+        user_states[user_id] = "WAITING_SLOT_INPUT"
+        slots = get_db("SELECT id, chat_id, name, link FROM slots ORDER BY id ASC")
+        msg = "⚙️ **CURRENT SLOTS CONFIG:**\n\n"
+        for s in slots:
+            msg += f"Slot {s[0]}: Name=`{s[2]}` | ChatID=`{s[1]}` | Link=`{s[3]}`\n"
+        msg += "\nSlot update karne ke liye is format me bhejein:\n`SlotNumber | ChatID | ChannelName | ChannelLink`\n*(Example: `1 | -100123456789 | MyChannel | https://t.me/MyChannel`)*"
+        return await message.reply_text(msg)
 
-    if step.startswith("edit_slot_"):
-        slot_num = int(step.replace("edit_slot_", ""))
-        try:
-            parts = message.text.strip().split("|")
-            chat_id, name, link = parts[0].strip(), parts[1].strip(), parts[2].strip()
-            cursor.execute("INSERT OR REPLACE INTO channels (slot_id, chat_id, name, link) VALUES (?, ?, ?, ?)", (slot_num, chat_id, name, link))
-            conn.commit()
-            await message.reply_text(f"✅ <b>Slot {slot_num}</b> updated with channel <b>{name}</b>!")
-        except Exception:
-            await message.reply_text("❌ Invalid Format! Use: <code>ChatID|ButtonName|InviteLink</code>")
+    elif text == "🖼️ Set DP/Video":
+        user_states[user_id] = "WAITING_MEDIA"
+        return await message.reply_text("🖼️ Abhi Bot Banner ke liye **Photo** ya **Video** bhejein:")
 
-    elif step == "set_media":
+    elif text == "🗑️ Remove DP/Video":
+        set_setting("media_type", None)
+        set_setting("media_file_id", None)
+        return await message.reply_text("✅ DP / Video Banner successfully remove ho gaya!")
+
+    elif text == "🎙️ Set Voice Note":
+        user_states[user_id] = "WAITING_VOICE"
+        return await message.reply_text("🎙️ Abhi **Voice Note** record karke bhejein:")
+
+    elif text == "🗑️ Remove Voice Note":
+        set_setting("voice_file_id", None)
+        return await message.reply_text("✅ Voice Note successfully remove ho gaya!")
+
+    elif text == "🔗 Set Click Link":
+        user_states[user_id] = "WAITING_CLICK_LINK"
+        return await message.reply_text("🔗 Custom Button lagane ke liye format me bhejein:\n`Button Text | https://t.me/yourlink`")
+
+    elif text == "🗑️ Remove Click Link":
+        set_setting("click_btn_name", None)
+        set_setting("click_btn_url", None)
+        return await message.reply_text("✅ Custom Click Button remove ho gaya!")
+
+    elif text == "✍️ Set Main Text":
+        user_states[user_id] = "WAITING_MAIN_TEXT"
+        return await message.reply_text("✍️ Verified users ke liye naya **Welcome Message** bhejein:")
+
+    elif text == "🔄 Reset Main Text":
+        set_setting("custom_text", None)
+        return await message.reply_text("✅ Main Text default reset ho gaya!")
+
+    elif text == "👤 Add Admin":
+        user_states[user_id] = "WAITING_ADD_ADMIN"
+        return await message.reply_text("👤 Naye Admin ka **Telegram User ID** bhejein:")
+
+    elif text == "🗑️ Del Admin":
+        user_states[user_id] = "WAITING_DEL_ADMIN"
+        return await message.reply_text("🗑️ Remove karne ke liye Admin ka **Telegram User ID** bhejein:")
+
+    elif text == "📊 Stats":
+        total_users = get_db("SELECT COUNT(*) FROM users", one=True)[0]
+        return await message.reply_text(f"📊 **TOTAL BOT USERS:** `{total_users}`")
+
+    elif text == "📢 Broadcast":
+        user_states[user_id] = "WAITING_BROADCAST"
+        return await message.reply_text("📢 Sabhi users ko broadcast karne ke liye **Message** bhejein:")
+
+    # --- PROCESS INPUT STATES ---
+    if state == "WAITING_MEDIA":
         if message.photo:
             set_setting("media_type", "photo")
-            set_setting("media_id", message.photo.file_id)
-            await message.reply_text("✅ DP Photo Banner Updated!")
+            set_setting("media_file_id", message.photo.file_id)
+            user_states.pop(user_id, None)
+            return await message.reply_text("✅ DP Photo Banner Updated Successfully!")
         elif message.video:
             set_setting("media_type", "video")
-            set_setting("media_id", message.video.file_id)
-            await message.reply_text("✅ Video Banner Updated!")
+            set_setting("media_file_id", message.video.file_id)
+            user_states.pop(user_id, None)
+            return await message.reply_text("✅ Video Banner Updated Successfully!")
         else:
-            await message.reply_text("❌ Send Photo or Video only!")
+            return await message.reply_text("❌ Kripya photo ya video hi bhejein!")
 
-    elif step == "set_voice":
+    elif state == "WAITING_VOICE":
         if message.voice:
-            set_setting("voice_id", message.voice.file_id)
-            await message.reply_text("✅ Voice Note Updated!")
+            set_setting("voice_file_id", message.voice.file_id)
+            user_states.pop(user_id, None)
+            return await message.reply_text("✅ Voice Note Set Successfully!")
         else:
-            await message.reply_text("❌ Send a Voice Message only!")
+            return await message.reply_text("❌ Kripya Voice Note hi bhejein!")
 
-    elif step == "set_click_link":
+    elif state == "WAITING_SLOT_INPUT":
         try:
-            parts = message.text.strip().split("|")
-            click_text, click_link = parts[0].strip(), parts[1].strip()
-            set_setting("click_here_text", click_text)
-            set_setting("click_here_link", click_link)
-            await message.reply_text(f"✅ Click Button Updated: <b>{click_text}</b> -> {click_link}")
+            parts = [p.strip() for p in text.split("|")]
+            slot_num, chat_id, name, link = int(parts[0]), parts[1], parts[2], parts[3]
+            get_db("INSERT OR REPLACE INTO slots (id, chat_id, name, link) VALUES (?, ?, ?, ?)", (slot_num, chat_id, name, link), commit=True)
+            user_states.pop(user_id, None)
+            return await message.reply_text(f"✅ Slot {slot_num} updated successfully!")
         except Exception:
-            await message.reply_text("❌ Format: <code>Button Name|URL</code>")
+            return await message.reply_text("❌ Invalid Format! Format: `1 | -100xxx | Name | Link`")
 
-    elif step == "set_text":
-        set_setting("start_text", message.text.html)
-        await message.reply_text("✅ Main Start Text Updated!")
+    elif state == "WAITING_CLICK_LINK":
+        try:
+            parts = [p.strip() for p in text.split("|")]
+            set_setting("click_btn_name", parts[0])
+            set_setting("click_btn_url", parts[1])
+            user_states.pop(user_id, None)
+            return await message.reply_text("✅ Custom Click Button Updated!")
+        except Exception:
+            return await message.reply_text("❌ Invalid Format! Use: `Button Name | Link`")
 
-    elif step == "add_admin":
-        if message.text.isdigit():
-            new_admin = int(message.text)
-            cursor.execute("INSERT OR IGNORE INTO admins (user_id) VALUES (?)", (new_admin,))
-            conn.commit()
-            await message.reply_text(f"✅ User <code>{new_admin}</code> added as Admin!")
-        else:
-            await message.reply_text("❌ Invalid User ID!")
+    elif state == "WAITING_MAIN_TEXT":
+        set_setting("custom_text", text)
+        user_states.pop(user_id, None)
+        return await message.reply_text("✅ Main Text Updated!")
 
-    elif step == "broadcast":
-        cursor.execute("SELECT user_id FROM users")
-        users = cursor.fetchall()
-        success = 0
-        status_msg = await message.reply_text("🔄 Broadcasting message...")
-        for (uid,) in users:
+    elif state == "WAITING_ADD_ADMIN":
+        try:
+            new_admin = int(text.strip())
+            get_db("INSERT OR IGNORE INTO admins (user_id) VALUES (?)", (new_admin,), commit=True)
+            user_states.pop(user_id, None)
+            return await message.reply_text(f"✅ Admin `{new_admin}` Added Successfully!")
+        except Exception:
+            return await message.reply_text("❌ Sahi Numeric User ID bhejein!")
+
+    elif state == "WAITING_DEL_ADMIN":
+        try:
+            del_admin = int(text.strip())
+            get_db("DELETE FROM admins WHERE user_id=?", (del_admin,), commit=True)
+            user_states.pop(user_id, None)
+            return await message.reply_text(f"✅ Admin `{del_admin}` Removed Successfully!")
+        except Exception:
+            return await message.reply_text("❌ Sahi Numeric User ID bhejein!")
+
+    elif state == "WAITING_BROADCAST":
+        users = get_db("SELECT user_id FROM users")
+        success, failed = 0, 0
+        await message.reply_text("📢 Broadcasting Started...")
+        for u in users:
             try:
-                await message.copy(uid)
+                await message.copy(chat_id=u[0])
                 success += 1
-                await asyncio.sleep(0.05)
             except Exception:
-                pass
-        await status_msg.edit_text(f"📢 Broadcast Finished!\n\n✅ Sent to: {success} users")
+                failed += 1
+        user_states.pop(user_id, None)
+        return await message.reply_text(f"📢 **BROADCAST COMPLETE!**\n\n✅ Success: `{success}`\n❌ Failed: `{failed}`")
 
+# ----------------- RUN BOT ----------------- #
 if __name__ == "__main__":
-    print("Full Control 7-Slot Bot Started!")
+    print("Bot Starting...")
     app.run()
-
