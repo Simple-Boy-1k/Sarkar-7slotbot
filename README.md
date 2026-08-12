@@ -8,9 +8,7 @@ A powerful Telegram Force Join Bot built with **Pyrogram** and **SQLite**, featu
 
 Neeche diye gaye button par click karke direct Heroku par deploy karein:
 
-[![Deploy](https://www.herokucdn.com/deploy/button.svg)](https://heroku.com/deploy?template=https://github.com/Simple-Boy-1k/YOUR_REPOSITORY_NAME)
-
-> ⚠️ **Note:** Upar diye gaye link me `YOUR_REPOSITORY_NAME` ko hata kar apne Telegram / GitHub repo ka real naam likh dein.
+[![Deploy](https://www.herokucdn.com/deploy/button.svg)](https://heroku.com/deploy?template=https://github.com/Simple-Boy-1k/Sarkar-7slotbot)
 
 ---
 
