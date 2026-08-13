@@ -6,21 +6,20 @@ user_states = {}
 
 def setup_admin_handlers(app: Client, owner_id: int, send_start_panel_fn):
     
-    # Professional & Clean Keyboard Layout with Small-Cap Slots
     admin_keyboard = ReplyKeyboardMarkup(
         [
             [KeyboardButton("✏️ Set Promo Text"), KeyboardButton("❌ Remove Promo")],
             [KeyboardButton("🔑 Set Get Key"), KeyboardButton("❌ Remove Get Key")],
             [KeyboardButton("🔗 Set Click Here"), KeyboardButton("❌ Remove Click")],
             [KeyboardButton("🌐 Set Verify Link"), KeyboardButton("❌ Remove Verify")],
-            [KeyboardButton("✅ ꜱʟᴏᴛ 1"), KeyboardButton("✅ ꜱʟᴏᴛ 2")],
-            [KeyboardButton("✅ ꜱʟᴏᴛ 3"), KeyboardButton("✅ ꜱʟᴏᴛ 4")],
-            [KeyboardButton("✅ ꜱʟᴏᴛ 5"), KeyboardButton("✅ ꜱʟᴏᴛ 6")],
-            [KeyboardButton("✅ ꜱʟᴏᴛ 7")],
-            [KeyboardButton("❌ Remove ꜱʟᴏᴛ 1"), KeyboardButton("❌ Remove ꜱʟᴏᴛ 2")],
-            [KeyboardButton("❌ Remove ꜱʟᴏᴛ 3"), KeyboardButton("❌ Remove ꜱʟᴏᴛ 4")],
-            [KeyboardButton("❌ Remove ꜱʟᴏᴛ 5"), KeyboardButton("❌ Remove ꜱʟᴏᴛ 6")],
-            [KeyboardButton("❌ Remove ꜱʟᴏᴛ 7")],
+            [KeyboardButton("✅ ꜱʟᴏﺕ 1"), KeyboardButton("✅ ꜱʟᴏﺕ 2")],
+            [KeyboardButton("✅ ꜱʟᴏﺕ 3"), KeyboardButton("✅ ꜱʟᴏﺕ 4")],
+            [KeyboardButton("✅ ꜱʟᴏﺕ 5"), KeyboardButton("✅ ꜱʟᴏﺕ 6")],
+            [KeyboardButton("✅ ꜱʟᴏﺕ 7")],
+            [KeyboardButton("❌ Remove ꜱʟᴏﺕ 1"), KeyboardButton("❌ Remove ꜱʟᴏﺕ 2")],
+            [KeyboardButton("❌ Remove ꜱʟᴏﺕ 3"), KeyboardButton("❌ Remove ꜱʟᴏﺕ 4")],
+            [KeyboardButton("❌ Remove ꜱʟᴏﺕ 5"), KeyboardButton("❌ Remove ꜱʟᴏﺕ 6")],
+            [KeyboardButton("❌ Remove ꜱʟᴏﺕ 7")],
             [KeyboardButton("📢 Broadcast"), KeyboardButton("📊 Stats User")],
             [KeyboardButton("🖼️ Set Banner DP"), KeyboardButton("❌ Remove DP")],
             [KeyboardButton("🎙️ Set Voice Note"), KeyboardButton("❌ Remove Voice")],
@@ -47,7 +46,23 @@ def setup_admin_handlers(app: Client, owner_id: int, send_start_panel_fn):
         text = message.text.strip() if message.text else ""
         lower_text = text.lower()
 
-        if "set promo text" in lower_text:
+        # 100% Working Flexible Slot & Remove Slot Handlers
+        slot_matched = False
+        for n in range(1, 8):
+            if str(n) in text and ("ꜱʟᴏﺕ" in text or "slot" in text or "ꜱʟ𝗼𝘁" in text):
+                if "remove" in lower_text:
+                    get_db("UPDATE slots SET chat_id = '', name = '', link = '' WHERE id = ?", (n,), commit=True)
+                    slot_matched = True
+                    return await message.reply_text(f"❌ SLOT {n} Removed Successfully!")
+                else:
+                    user_states[user_id] = f"SET_SLOT_{n}"
+                    slot_matched = True
+                    return await message.reply_text(f"✅ Send link for **SLOT {n}** (Seedha link bhej sakte hain, save ho jayega):")
+        
+        if slot_matched:
+            return
+
+        if "set promo text" in lower_text or "promo text" in lower_text:
             user_states[user_id] = "SET_PROMO"
             return await message.reply_text("✏️ Send new Promo Text for /start:")
         
@@ -71,7 +86,7 @@ def setup_admin_handlers(app: Client, owner_id: int, send_start_panel_fn):
             set_setting("click_url", "")
             return await message.reply_text("✅ Click Here Link Removed!")
 
-        elif "set verify" in lower_text:
+        elif "set verify" in lower_text or "verify link" in lower_text:
             user_states[user_id] = "SET_VERIFY"
             return await message.reply_text("🌐 Send Verify / Check Joined URL:")
             
@@ -111,7 +126,7 @@ def setup_admin_handlers(app: Client, owner_id: int, send_start_panel_fn):
         elif "start bot" in lower_text:
             return await send_start_panel_fn(client, message, user_id)
 
-        elif "set banner dp" in lower_text:
+        elif "set banner dp" in lower_text or ("dp" in lower_text and "set" in lower_text):
             user_states[user_id] = "SET_DP"
             return await message.reply_text("🖼️ Send Banner Photo or Video:")
             
@@ -120,27 +135,13 @@ def setup_admin_handlers(app: Client, owner_id: int, send_start_panel_fn):
             set_setting("media_type", "")
             return await message.reply_text("✅ DP Removed!")
 
-        elif "set voice note" in lower_text:
+        elif "set voice note" in lower_text or ("voice" in lower_text and "set" in lower_text):
             user_states[user_id] = "SET_VOICE"
             return await message.reply_text("🎙️ Send Voice Message:")
             
         elif "remove voice" in lower_text:
             set_setting("voice_file_id", "")
             return await message.reply_text("✅ Voice Removed!")
-
-        # Remove Slots Handler
-        elif "remove ꜱʟᴏﺕ" in lower_text or "remove slot" in lower_text:
-            for n in range(1, 8):
-                if str(n) in text:
-                    get_db("UPDATE slots SET chat_id = '', name = '', link = '' WHERE id = ?", (n,), commit=True)
-                    return await message.reply_text(f"❌ SLOT {n} Removed Successfully!")
-
-        # Set Slots Handler
-        elif "ꜱʟᴏﺕ" in lower_text or "slot" in lower_text:
-            for n in range(1, 8):
-                if str(n) in text:
-                    user_states[user_id] = f"SET_SLOT_{n}"
-                    return await message.reply_text(f"✅ Send link for **SLOT {n}** (Seedha link bhej sakte hain, save ho jayega):")
 
         # ---------------- STATE HANDLERS ----------------
         state = user_states.get(user_id)
@@ -224,7 +225,7 @@ def setup_admin_handlers(app: Client, owner_id: int, send_start_panel_fn):
             if input_text.lower() == "off":
                 get_db("UPDATE slots SET chat_id = '', name = '', link = '' WHERE id = ?", (int(slot_id),), commit=True)
                 user_states.pop(user_id, None)
-                return await message.reply_text(f"❌ SLOT {slot_id} Removed!")
+                return await message.reply_text(f"✅ SLOT {slot_id} Removed!")
 
             if "|" in input_text:
                 parts = input_text.split("|")
