@@ -48,17 +48,19 @@ async def send_start_panel(client, message, user_id):
             parse_mode=enums.ParseMode.HTML
         )
 
-    # Fetch User First Name & Full Name
-    first_name = message.from_user.first_name if message.from_user else "User"
-    last_name = message.from_user.last_name if message.from_user and message.from_user.last_name else ""
+    # Fetch User Details dynamically
+    user = message.from_user
+    first_name = user.first_name if user and user.first_name else "User"
+    last_name = user.last_name if user and user.last_name else ""
     full_name = f"{first_name} {last_name}".strip()
+    mention = user.mention if user else full_name
 
-    # ONLY WELCOME + USER NAME DISPLAY
-    default_text = f"<b>Welcome {full_name}</b>"
+    # DEFAULT TEXT FORMAT (Clickable Name)
+    default_text = f"<b>Welcome {mention}</b>"
     
     custom_text = get_setting("promo_text")
     if custom_text:
-        custom_text = custom_text.replace("{name}", full_name).replace("{first_name}", first_name)
+        custom_text = custom_text.replace("{name}", full_name).replace("{first_name}", first_name).replace("{mention}", mention)
     else:
         custom_text = default_text
 
@@ -89,7 +91,12 @@ async def send_start_panel(client, message, user_id):
     if click_name and click_url:
         inline_buttons.append([InlineKeyboardButton(text=f"{click_name} ↗", url=click_url)])
 
-    inline_buttons.append([InlineKeyboardButton(text=f"{BTN_GREEN_CHECK} Check Joined ↗", callback_data="verify_sub")])
+    # VERIFY BUTTON (Dynamic Link or Auto Verification)
+    verify_url = get_setting("verify_url")
+    if verify_url and verify_url.strip():
+        inline_buttons.append([InlineKeyboardButton(text=f"{BTN_GREEN_CHECK} Check Joined ↗", url=verify_url.strip())])
+    else:
+        inline_buttons.append([InlineKeyboardButton(text=f"{BTN_GREEN_CHECK} Check Joined ↗", callback_data="verify_sub")])
 
     markup = InlineKeyboardMarkup(inline_buttons)
 
