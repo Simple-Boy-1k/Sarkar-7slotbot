@@ -5,16 +5,24 @@ from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, Message, 
 from database import init_db, get_db, get_setting, is_admin
 from admin import setup_admin_handlers, user_states
 
-# IMPORT EXACT VARIABLES FROM EMOJIS MODULE
-from emojis import (
-    EMOJI_FIRE,
-    EMOJI_SWORDS,
-    EMOJI_LOCK,
-    EMOJI_TELEGRAM,
-    EMOJI_KEY,
-    BTN_PURPLE_STAR,
-    BTN_GREEN_CHECK
-)
+# ----------------- SAFE EMOJIS IMPORT (NO MORE IMPORT ERROR) ----------------- #
+try:
+    import emojis
+    ICON_FIRE = getattr(emojis, "ICON_FIRE", getattr(emojis, "EMOJI_FIRE", "🔥"))
+    ICON_SWORDS = getattr(emojis, "ICON_SWORDS", getattr(emojis, "EMOJI_SWORDS", "⚔️"))
+    ICON_LOCK = getattr(emojis, "ICON_LOCK", getattr(emojis, "EMOJI_LOCK", "🚫"))
+    ICON_TELEGRAM = getattr(emojis, "ICON_TELEGRAM", getattr(emojis, "EMOJI_TELEGRAM", "📬"))
+    ICON_KEY = getattr(emojis, "ICON_KEY", getattr(emojis, "EMOJI_KEY", "🔑"))
+    BTN_PURPLE_STAR = getattr(emojis, "BTN_PURPLE_STAR", "💜")
+    BTN_GREEN_CHECK = getattr(emojis, "BTN_GREEN_CHECK", "🟢")
+except Exception:
+    ICON_FIRE = "🔥"
+    ICON_SWORDS = "⚔️"
+    ICON_LOCK = "🚫"
+    ICON_TELEGRAM = "📬"
+    ICON_KEY = "🔑"
+    BTN_PURPLE_STAR = "💜"
+    BTN_GREEN_CHECK = "🟢"
 
 # ----------------- CONFIGURATION ----------------- #
 API_ID = int(os.environ.get("API_ID", "0"))
@@ -65,12 +73,12 @@ async def send_start_panel(client, message, user_id):
     # Get Key Link from Database
     get_key_link = get_setting("get_key_url") or "https://t.me"
 
-    # CAPTION WITH IMPORTED PREMIUM EMOJIS
+    # CAPTION WITH IMPORTED EMOJIS
     default_text = (
-        f"{EMOJI_FIRE} <b>Welcome {full_name} :: {EMOJI_SWORDS} :: MOD</b>\n\n"
-        f"{EMOJI_LOCK} <b>Join All Channels To Unlock</b> {EMOJI_TELEGRAM}\n\n"
+        f"{ICON_FIRE} <b>Welcome {full_name} :: {ICON_SWORDS} :: MOD</b>\n\n"
+        f"{ICON_LOCK} <b>Join All Channels To Unlock</b> {ICON_TELEGRAM}\n\n"
         f"🪩 🔗 <b>How To Get Key 💨 📉</b>\n"
-        f"<a href='{get_key_link}'>🤫 <b>GET KEY</b> {EMOJI_KEY}</a>"
+        f"<a href='{get_key_link}'>🤫 <b>GET KEY</b> {ICON_KEY}</a>"
     )
 
     # ADMIN CUSTOM / PREMIUM TEXT OVERRIDE
@@ -80,11 +88,11 @@ async def send_start_panel(client, message, user_id):
                                   .replace("{first_name}", first_name)\
                                   .replace("{mention}", mention)\
                                   .replace("{key_link}", get_key_link)\
-                                  .replace("{FIRE}", EMOJI_FIRE)\
-                                  .replace("{SWORDS}", EMOJI_SWORDS)\
-                                  .replace("{LOCK}", EMOJI_LOCK)\
-                                  .replace("{TELEGRAM}", EMOJI_TELEGRAM)\
-                                  .replace("{KEY}", EMOJI_KEY)
+                                  .replace("{FIRE}", ICON_FIRE)\
+                                  .replace("{SWORDS}", ICON_SWORDS)\
+                                  .replace("{LOCK}", ICON_LOCK)\
+                                  .replace("{TELEGRAM}", ICON_TELEGRAM)\
+                                  .replace("{KEY}", ICON_KEY)
     else:
         caption_text = default_text
 
