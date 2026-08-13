@@ -1,26 +1,9 @@
-import random
 from pyrogram import enums
 from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from database import get_db, get_setting
 
-# 🛡️ Safe check for ButtonStyle support (Prevents Heroku Crash)
-if hasattr(enums, "ButtonStyle"):
-    STYLES = [
-        enums.ButtonStyle.PRIMARY,  # 🟦 Blue Color
-        enums.ButtonStyle.SUCCESS,  # 🟩 Green Color
-        enums.ButtonStyle.DANGER    # 🟥 Red Color
-    ]
-else:
-    STYLES = []
-
-def get_random_style():
-    """ Safely passes style parameter only if supported by installed Pyrogram """
-    if STYLES:
-        return {"style": random.choice(STYLES)}
-    return {}
-
 def clean_url(url):
-    """ Auto-Fixer: Converts user input into a valid Telegram link """
+    """ Fast URL Fixer """
     if not url:
         return None
     url = str(url).strip().replace(" ", "")
@@ -36,8 +19,10 @@ def clean_url(url):
 
 def get_colored_start_panel():
     """
-    Fetches active 1-7 slots from DB and safely creates buttons.
+    Super Fast & Vibrant Solid Blue / Green Buttons
+    Matching Screenshot 2 exact UI Layout.
     """
+    # Single optimized DB query
     all_slots = get_db("SELECT id, chat_id, name, link FROM slots ORDER BY id ASC") or []
     
     active_slots = []
@@ -49,46 +34,61 @@ def get_colored_start_panel():
 
     inline_buttons = []
 
-    # Build 2-Buttons per row
-    for i in range(0, len(active_slots), 2):
-        row = []
-        
-        # Button 1
-        s1 = active_slots[i]
-        s1_name = s1[2] if (s1[2] and str(s1[2]).strip()) else f"Channel {s1[0]}"
-        row.append(
-            InlineKeyboardButton(
-                text=f"💜 {s1_name}",
-                url=s1[3],
-                **get_random_style()
-            )
-        )
-        
-        # Button 2
-        if i + 1 < len(active_slots):
-            s2 = active_slots[i+1]
-            s2_name = s2[2] if (s2[2] and str(s2[2]).strip()) else f"Channel {s2[0]}"
+    # Build 2-Buttons per row (Solid Blue Buttons)
+    i = 0
+    total = len(active_slots)
+    
+    while i < total:
+        # Agar aakhri single button bacha hai (jaise Channel 7) toh full row banaye
+        if i == total - 1 and total % 2 != 0:
+            s = active_slots[i]
+            s_name = s[2] if (s[2] and str(s[2]).strip()) else f"Channel {s[0]}"
+            inline_buttons.append([
+                InlineKeyboardButton(
+                    text=f"⭐ {s_name}",
+                    url=s[3],
+                    style=enums.ButtonStyle.PRIMARY  # 🟦 Solid Blue Color
+                )
+            ])
+            i += 1
+        else:
+            row = []
+            # Button 1
+            s1 = active_slots[i]
+            s1_name = s1[2] if (s1[2] and str(s1[2]).strip()) else f"Channel {s1[0]}"
             row.append(
                 InlineKeyboardButton(
-                    text=f"💜 {s2_name}",
-                    url=s2[3],
-                    **get_random_style()
+                    text=f"⭐ {s1_name}",
+                    url=s1[3],
+                    style=enums.ButtonStyle.PRIMARY  # 🟦 Solid Blue Color
                 )
             )
             
-        inline_buttons.append(row)
+            # Button 2
+            if i + 1 < total:
+                s2 = active_slots[i+1]
+                s2_name = s2[2] if (s2[2] and str(s2[2]).strip()) else f"Channel {s2[0]}"
+                row.append(
+                    InlineKeyboardButton(
+                        text=f"⭐ {s2_name}",
+                        url=s2[3],
+                        style=enums.ButtonStyle.PRIMARY  # 🟦 Solid Blue Color
+                    )
+                )
+                i += 2
+            else:
+                i += 1
+                
+            inline_buttons.append(row)
 
-    # Check Joined Button
+    # 🟩 Solid Green "Check Joined" Button
     verify_url = clean_url(get_setting("verify_url"))
-    
-    check_style = {"style": enums.ButtonStyle.SUCCESS} if hasattr(enums, "ButtonStyle") else {}
-    
     if verify_url:
         inline_buttons.append([
             InlineKeyboardButton(
                 text="🟢 Check Joined", 
                 url=verify_url,
-                **check_style
+                style=enums.ButtonStyle.SUCCESS  # 🟩 Solid Green Color
             )
         ])
     else:
@@ -96,7 +96,7 @@ def get_colored_start_panel():
             InlineKeyboardButton(
                 text="🟢 Check Joined", 
                 callback_data="verify_sub",
-                **check_style
+                style=enums.ButtonStyle.SUCCESS  # 🟩 Solid Green Color
             )
         ])
 
