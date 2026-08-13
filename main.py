@@ -5,10 +5,15 @@ from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, Message, 
 from database import init_db, get_db, get_setting, is_admin
 from admin import setup_admin_handlers, user_states
 
-# IMPORT CUSTOM PREMIUM EMOJIS
+# IMPORT EXACT VARIABLES FROM EMOJIS MODULE
 from emojis import (
-    EMOJI_FIRE, EMOJI_SWORDS, EMOJI_LOCK, EMOJI_DIAMOND,
-    EMOJI_KEY_ICON, EMOJI_BELL, BTN_STAR, BTN_CHECK
+    EMOJI_FIRE,
+    EMOJI_SWORDS,
+    EMOJI_LOCK,
+    EMOJI_TELEGRAM,
+    EMOJI_KEY,
+    BTN_PURPLE_STAR,
+    BTN_GREEN_CHECK
 )
 
 # ----------------- CONFIGURATION ----------------- #
@@ -46,7 +51,7 @@ async def send_start_panel(client, message, user_id):
         offline_chan = get_setting("offline_channel") or "https://t.me"
         return await message.reply_text(
             f"🔴 <b>Bot is currently Offline for maintenance.</b>",
-            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(f"{BTN_STAR} Official Channel ↗", url=offline_chan)]]),
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(f"{BTN_PURPLE_STAR} Official Channel ↗", url=offline_chan)]]),
             parse_mode=enums.ParseMode.HTML
         )
 
@@ -57,15 +62,15 @@ async def send_start_panel(client, message, user_id):
     full_name = f"{first_name} {last_name}".strip()
     mention = user.mention if user else full_name
 
-    # Get KEY Link from Database
+    # Get Key Link from Database
     get_key_link = get_setting("get_key_url") or "https://t.me"
 
-    # CAPTION WITH TELEGRAM PREMIUM EMOJI TAGS
+    # CAPTION WITH IMPORTED PREMIUM EMOJIS
     default_text = (
         f"{EMOJI_FIRE} <b>Welcome {full_name} :: {EMOJI_SWORDS} :: MOD</b>\n\n"
-        f"{EMOJI_LOCK} <b>Join All Channels To Unlock</b> {EMOJI_DIAMOND}\n\n"
+        f"{EMOJI_LOCK} <b>Join All Channels To Unlock</b> {EMOJI_TELEGRAM}\n\n"
         f"🪩 🔗 <b>How To Get Key 💨 📉</b>\n"
-        f"<a href='{get_key_link}'>{EMOJI_KEY_ICON} <b>GET KEY {EMOJI_BELL}</b></a>"
+        f"<a href='{get_key_link}'>🤫 <b>GET KEY</b> {EMOJI_KEY}</a>"
     )
 
     # ADMIN CUSTOM / PREMIUM TEXT OVERRIDE
@@ -74,7 +79,12 @@ async def send_start_panel(client, message, user_id):
         caption_text = custom_text.replace("{name}", full_name)\
                                   .replace("{first_name}", first_name)\
                                   .replace("{mention}", mention)\
-                                  .replace("{key_link}", get_key_link)
+                                  .replace("{key_link}", get_key_link)\
+                                  .replace("{FIRE}", EMOJI_FIRE)\
+                                  .replace("{SWORDS}", EMOJI_SWORDS)\
+                                  .replace("{LOCK}", EMOJI_LOCK)\
+                                  .replace("{TELEGRAM}", EMOJI_TELEGRAM)\
+                                  .replace("{KEY}", EMOJI_KEY)
     else:
         caption_text = default_text
 
@@ -87,32 +97,32 @@ async def send_start_panel(client, message, user_id):
     all_slots = get_db("SELECT id, name, link FROM slots ORDER BY id ASC")
     active_slots = [s for s in all_slots if s[2] and s[2].strip()]
 
-    # 2-Column Grid for Channel Slots
+    # 2-Column Grid
     for i in range(0, len(active_slots), 2):
         row = []
         s1 = active_slots[i]
-        row.append(InlineKeyboardButton(text=f"{BTN_STAR} {s1[1] or f'Channel {s1[0]}'} ↗", url=s1[2]))
+        row.append(InlineKeyboardButton(text=f"{BTN_PURPLE_STAR} {s1[1] or f'Channel {s1[0]}'} ↗", url=s1[2]))
         if i + 1 < len(active_slots):
             s2 = active_slots[i+1]
-            row.append(InlineKeyboardButton(text=f"{BTN_STAR} {s2[1] or f'Channel {s2[0]}'} ↗", url=s2[2]))
+            row.append(InlineKeyboardButton(text=f"{BTN_PURPLE_STAR} {s2[1] or f'Channel {s2[0]}'} ↗", url=s2[2]))
         inline_buttons.append(row)
 
-    # Custom Click Button
+    # Extra Click Button (Optional)
     click_name = get_setting("click_name")
     click_url = get_setting("click_url")
     if click_name and click_url:
-        inline_buttons.append([InlineKeyboardButton(text=f"{click_name} ↗", url=click_url)])
+        inline_buttons.append([InlineKeyboardButton(text=f"✨ {click_name} ↗", url=click_url)])
 
-    # VERIFY / CHECK JOINED BUTTON
+    # VERIFY BUTTON
     verify_url = get_setting("verify_url")
     if verify_url and verify_url.strip():
-        inline_buttons.append([InlineKeyboardButton(text=f"{BTN_CHECK} Check Joined ↗", url=verify_url.strip())])
+        inline_buttons.append([InlineKeyboardButton(text=f"{BTN_GREEN_CHECK} Check Joined ↗", url=verify_url.strip())])
     else:
-        inline_buttons.append([InlineKeyboardButton(text=f"{BTN_CHECK} Check Joined ↗", callback_data="verify_sub")])
+        inline_buttons.append([InlineKeyboardButton(text=f"{BTN_GREEN_CHECK} Check Joined ↗", callback_data="verify_sub")])
 
     markup = InlineKeyboardMarkup(inline_buttons)
 
-    # SEND MESSAGE WITH MEDIA
+    # SEND MESSAGE
     if media_type == "photo" and media_file:
         await client.send_photo(message.chat.id, photo=media_file, caption=caption_text, reply_markup=markup, parse_mode=enums.ParseMode.HTML)
     elif media_type == "video" and media_file:
