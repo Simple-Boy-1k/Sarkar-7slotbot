@@ -1,5 +1,4 @@
 import os
-import time
 import asyncio
 from pyrogram import Client, filters, enums
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, Message, CallbackQuery
@@ -17,7 +16,7 @@ OWNER_ID = int(os.environ.get("OWNER_ID", "0"))
 app = Client("Sarkar_7Slot_Bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
 init_db()
 
-# ----------------- URL CLEANER (PREVENTS 400 ERROR) -----------------
+# ----------------- URL CLEANER -----------------
 def clean_url(url):
     if not url:
         return None
@@ -28,79 +27,32 @@ def clean_url(url):
         url = f"https://{url}"
     return url
 
-# ----------------- IN-MEMORY CACHE (INSTANT LOADS) -----------------
-CACHE_TTL = 5  # 5 Seconds cache
-_setting_cache = {}
-_setting_time = {}
+# ----------------- GLOBAL PRE-BUILT RAM CACHE -----------------
+START_CACHE = {
+    "status": "online",
+    "offline_markup": None,
+    "media_file": None,
+    "media_type": None,
+    "voice_file": None,
+    "markup": None,
+    "caption_template": "",
+    "slots": []
+}
 
-def get_setting_fast(key):
-    now = time.time()
-    if key in _setting_cache and (now - _setting_time.get(key, 0) < CACHE_TTL):
-        return _setting_cache[key]
-    val = get_setting(key)
-    _setting_cache[key] = val
-    _setting_time[key] = now
-    return val
-
-_slots_cache = None
-_slots_cache_time = 0
-
-def get_slots_fast():
-    global _slots_cache, _slots_cache_time
-    now = time.time()
-    if _slots_cache is not None and (now - _slots_cache_time < CACHE_TTL):
-        return _slots_cache
-    _slots_cache = get_db("SELECT id, chat_id, name, link FROM slots ORDER BY id ASC") or []
-    _slots_cache_time = now
-    return _slots_cache
-
-# ----------------- FAST PARALLEL FORCE-SUB CHECK -----------------
-async def _check_single_slot(client, slot, user_id):
-    if not isinstance(slot, (list, tuple)) or len(slot) < 4:
-        return None
-    s_id, chat_id, name, link = slot[0], slot[1], slot[2], slot[3]
-    link = clean_url(link)
-    if link:
-        if chat_id and str(chat_id).strip():
-            try:
-                member = await client.get_chat_member(str(chat_id).strip(), user_id)
-                if member.status in [enums.ChatMemberStatus.BANNED, enums.ChatMemberStatus.LEFT]:
-                    return (s_id, name or f"Channel {s_id}", link)
-            except Exception:
-                return (s_id, name or f"Channel {s_id}", link)
-        else:
-            return (s_id, name or f"Channel {s_id}", link)
-    return None
-
-async def check_force_sub(client, user_id):
-    slots = get_slots_fast()
-    tasks = [_check_single_slot(client, slot, user_id) for slot in slots]
-    results = await asyncio.gather(*tasks)
-    return [res for res in results if res is not None]
-
-# ----------------- START PANEL SENDER -----------------
-async def send_start_panel(client, message, user_id):
-    if get_setting_fast("bot_status") == "offline" and not is_admin(user_id, OWNER_ID):
-        offline_chan = clean_url(get_setting_fast("offline_channel")) or "https://t.me"
-        return await message.reply_text(
-            "🔴 <b>Bot is currently Offline for maintenance.</b>",
-            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Official Channel", url=offline_chan)]]),
-            parse_mode=enums.ParseMode.HTML
-        )
-
-    user = message.from_user
-    first_name = user.first_name if user and user.first_name else "User"
-    last_name = user.last_name if user and user.last_name else ""
-    full_name = f"{first_name} {last_name}".strip()
-    mention = user.mention if user else full_name
-
-    raw_key = get_setting_fast("get_key_url")
-    raw_click = get_setting_fast("click_url")
+def build_start_cache():
+    """ Runs once at startup & updates in RAM for ZERO delay on /start """
+    global START_CACHE
     
+    status = get_setting("bot_status") or "online"
+    offline_chan = clean_url(get_setting("offline_channel")) or "https://t.me"
+    offline_markup = InlineKeyboardMarkup([[InlineKeyboardButton("Official Channel", url=offline_chan)]])
+
+    raw_key = get_setting("get_key_url")
+    raw_click = get_setting("click_url")
     get_key_link = clean_url(raw_click if (raw_click and str(raw_click).strip()) else raw_key)
     has_key_link = bool(get_key_link)
 
-    header = f"{emojis.EMOJI_WELCOME_HEAD} <b>Welcome {full_name} 🌹</b>\n\n"
+    header = f"{emojis.EMOJI_WELCOME_HEAD} <b>Welcome {{name}} 🌹</b>\n\n"
     
     if has_key_link:
         indent = "\u00A0" * 8
@@ -111,33 +63,26 @@ async def send_start_panel(client, message, user_id):
     else:
         footer = ""
 
-    custom_text = get_setting_fast("promo_text")
+    custom_text = get_setting("promo_text")
 
     if custom_text:
-        formatted_text = str(custom_text).replace("{name}", full_name)\
-                                          .replace("{first_name}", first_name)\
-                                          .replace("{mention}", mention)
-        
+        formatted_text = str(custom_text)
         if has_key_link:
             formatted_text = formatted_text.replace("{key_link}", get_key_link)
 
         if "𝐆𝐞𝐭 𝐊𝐞𝐲" in custom_text or "𝐇𝐨𝐰 𝐓𝐨 𝐆𝐞𝐭 𝐊𝐞𝐲" in custom_text:
-            caption_text = formatted_text
+            caption_template = formatted_text
         else:
-            caption_text = f"{header}{formatted_text}{footer}"
+            caption_template = f"{header}{formatted_text}{footer}"
     else:
         middle = "🚫 <b>𝐉𝐨𝐢𝐧 𝐀𝐥𝐥 𝐂𝐡𝐚𝐧𝐧𝐞𝐥𝐬 𝐓𝐨 𝐔𝐧𝐥𝐨𝐜𝐤 </b> 📬"
-        caption_text = f"{header}{middle}{footer}"
+        caption_template = f"{header}{middle}{footer}"
 
-    media_file = get_setting_fast("media_file_id")
-    media_type = get_setting_fast("media_type")
-    voice_file = get_setting_fast("voice_file_id")
-
-    inline_buttons = []
-    all_slots = get_slots_fast()
-    
+    # Build Buttons Pre-hand
+    all_slots = get_db("SELECT id, chat_id, name, link FROM slots ORDER BY id ASC") or []
     active_slots = [s for s in all_slots if isinstance(s, (list, tuple)) and len(s) >= 4 and s[3] and str(s[3]).strip()]
 
+    inline_buttons = []
     for i in range(0, len(active_slots), 2):
         row = []
         s1 = active_slots[i]
@@ -156,17 +101,74 @@ async def send_start_panel(client, message, user_id):
         if row:
             inline_buttons.append(row)
 
-    # Check Joined Button Validation
-    verify_url = clean_url(get_setting_fast("verify_url"))
+    verify_url = clean_url(get_setting("verify_url"))
     if verify_url:
         inline_buttons.append([InlineKeyboardButton(text="🟢 Check Joined", url=verify_url)])
     else:
         inline_buttons.append([InlineKeyboardButton(text="🟢 Check Joined", callback_data="verify_sub")])
 
-    markup = InlineKeyboardMarkup(inline_buttons) if inline_buttons else None
+    START_CACHE["status"] = status
+    START_CACHE["offline_markup"] = offline_markup
+    START_CACHE["media_file"] = get_setting("media_file_id")
+    START_CACHE["media_type"] = get_setting("media_type")
+    START_CACHE["voice_file"] = get_setting("voice_file_id")
+    START_CACHE["markup"] = InlineKeyboardMarkup(inline_buttons) if inline_buttons else None
+    START_CACHE["caption_template"] = caption_template
+    START_CACHE["slots"] = active_slots
 
-    # Immediate Message Dispatch
+# Initialize cache at startup
+build_start_cache()
+
+# ----------------- PARALLEL FORCE SUB CHECK -----------------
+async def _check_single_slot(client, slot, user_id):
+    if not isinstance(slot, (list, tuple)) or len(slot) < 4:
+        return None
+    s_id, chat_id, name, link = slot[0], slot[1], slot[2], slot[3]
+    link = clean_url(link)
+    if link and chat_id and str(chat_id).strip():
+        try:
+            member = await client.get_chat_member(str(chat_id).strip(), user_id)
+            if member.status in [enums.ChatMemberStatus.BANNED, enums.ChatMemberStatus.LEFT]:
+                return (s_id, name or f"Channel {s_id}", link)
+        except Exception:
+            return (s_id, name or f"Channel {s_id}", link)
+    return None
+
+async def check_force_sub(client, user_id):
+    tasks = [_check_single_slot(client, slot, user_id) for slot in START_CACHE["slots"]]
+    results = await asyncio.gather(*tasks)
+    return [res for res in results if res is not None]
+
+# ----------------- LIGHTNING FAST START HANDLER -----------------
+@app.on_message(filters.command("start"))
+async def start_cmd(client, message: Message):
+    user_id = message.from_user.id
+    
+    # Non-blocking DB save
+    asyncio.create_task(asyncio.to_thread(get_db, "INSERT OR IGNORE INTO users (user_id) VALUES (?)", (user_id,), True))
+    user_states.pop(user_id, None)
+
+    # Offline check
+    if START_CACHE["status"] == "offline" and not is_admin(user_id, OWNER_ID):
+        return await message.reply_text("🔴 <b>Bot is currently Offline for maintenance.</b>", reply_markup=START_CACHE["offline_markup"], parse_mode=enums.ParseMode.HTML)
+
+    user = message.from_user
+    first_name = user.first_name if user and user.first_name else "User"
+    last_name = user.last_name if user and user.last_name else ""
+    full_name = f"{first_name} {last_name}".strip()
+    mention = user.mention if user else full_name
+
+    # Quick dynamic name replacement (Nanoseconds)
+    caption_text = START_CACHE["caption_template"].replace("{name}", full_name)\
+                                                  .replace("{first_name}", first_name)\
+                                                  .replace("{mention}", mention)
+
     chat_id = message.chat.id
+    media_file = START_CACHE["media_file"]
+    media_type = START_CACHE["media_type"]
+    markup = START_CACHE["markup"]
+
+    # INSTANT SEND
     if media_type == "photo" and media_file:
         await client.send_photo(chat_id, photo=media_file, caption=caption_text, reply_markup=markup, parse_mode=enums.ParseMode.HTML)
     elif media_type == "video" and media_file:
@@ -174,22 +176,12 @@ async def send_start_panel(client, message, user_id):
     else:
         await client.send_message(chat_id, text=caption_text, reply_markup=markup, parse_mode=enums.ParseMode.HTML)
 
-    if voice_file:
-        await client.send_voice(chat_id, voice=voice_file)
-
-@app.on_message(filters.command("start"))
-async def start_cmd(client, message: Message):
-    user_id = message.from_user.id
-    user_states.pop(user_id, None)
-    
-    # Save user in DB without blocking the start command execution
-    asyncio.create_task(asyncio.to_thread(get_db, "INSERT OR IGNORE INTO users (user_id) VALUES (?)", (user_id,), True))
-    
-    await send_start_panel(client, message, user_id)
+    if START_CACHE["voice_file"]:
+        await client.send_voice(chat_id, voice=START_CACHE["voice_file"])
 
 @app.on_callback_query(filters.regex("verify_sub"))
 async def verify_cb(client, callback: CallbackQuery):
-    if get_setting_fast("bot_status") == "offline" and not is_admin(callback.from_user.id, OWNER_ID):
+    if START_CACHE["status"] == "offline" and not is_admin(callback.from_user.id, OWNER_ID):
         return await callback.answer("🔴 Bot is currently offline for maintenance!", show_alert=True)
 
     user_id = callback.from_user.id
@@ -199,8 +191,8 @@ async def verify_cb(client, callback: CallbackQuery):
     else:
         await callback.answer("✅ Verified Successfully!", show_alert=False)
         
-        raw_key = get_setting_fast("get_key_url")
-        raw_click = get_setting_fast("click_url")
+        raw_key = get_setting("get_key_url")
+        raw_click = get_setting("click_url")
         final_key_url = clean_url(raw_click if (raw_click and str(raw_click).strip()) else raw_key)
         
         try:
@@ -215,8 +207,13 @@ async def verify_cb(client, callback: CallbackQuery):
             
         await client.send_message(callback.message.chat.id, key_msg, parse_mode=enums.ParseMode.HTML, disable_web_page_preview=True)
 
-setup_admin_handlers(app, OWNER_ID, send_start_panel)
+# Function to refresh cache when Admin changes anything
+async def send_start_panel_refresh(client, message, user_id):
+    build_start_cache()
+    await start_cmd(client, message)
+
+setup_admin_handlers(app, OWNER_ID, send_start_panel_refresh)
 
 if __name__ == "__main__":
-    print("🚀 Bot starting...")
+    print("🚀 Pre-Built Fast Engine Starting...")
     app.run()
