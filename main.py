@@ -58,10 +58,11 @@ async def send_start_panel(client, message, user_id):
     header = f"{emojis.EMOJI_WELCOME_HEAD} <b>Welcome {full_name} 🌹</b>\n\n"
     
     if has_key_link:
-        # GET KEY ko aage karne ke liye yahan 3 spaces add kiye hain
+        # \u00A0 se Telegram text ko aage shift kar dega aur trim nahi karega
+        indent = "\u00A0" * 8
         footer = (
-            f"\n\n{emojis.EMOJI_KEY_HEAD_LEFT1} {emojis.EMOJI_KEY_HEAD_LEFT2}<b>𝐇𝐨𝐰 𝐓𝐨 𝐆𝐞𝐭 𝐊𝐞𝐲</b> {emojis.EMOJI_KEY_HEAD_RIGHT1} {emojis.EMOJI_KEY_HEAD_RIGHT2}\n"
-            f"   {emojis.EMOJI_GET_KEY_LEFT} <a href='{str(get_key_link).strip()}'><>/b>𝐆𝐞𝐭 𝐊𝐞𝐲 </b></a> {emojis.EMOJI_GET_KEY_RIGHT}"
+            f"\n\n{emojis.EMOJI_KEY_HEAD_LEFT1} {emojis.EMOJI_KEY_HEAD_LEFT2} <b>𝐇𝐨𝐰 𝐓𝐨 𝐆𝐞𝐭 𝐊𝐞𝐲</b> {emojis.EMOJI_KEY_HEAD_RIGHT1} {emojis.EMOJI_KEY_HEAD_RIGHT2}\n"
+            f"{indent}{emojis.EMOJI_GET_KEY_LEFT} <a href='{str(get_key_link).strip()}'><b>𝐆𝐞𝐭 𝐊𝐞𝐲 </b></a> {emojis.EMOJI_GET_KEY_RIGHT}"
         )
     else:
         footer = ""
@@ -121,7 +122,7 @@ async def send_start_panel(client, message, user_id):
     if media_type == "photo" and media_file:
         await client.send_photo(message.chat.id, photo=media_file, caption=caption_text, reply_markup=markup, parse_mode=enums.ParseMode.HTML)
     elif media_type == "video" and media_file:
-        await client.send_video(message.chat.id, video=media_file, caption=caption_text, reply_markup=markup, parse_mode=enums.ParseMode.HTML)
+        await client.send_video(message.chat.id, video=message.chat.id, caption=caption_text, reply_markup=markup, parse_mode=enums.ParseMode.HTML)
     else:
         await client.send_message(message.chat.id, text=caption_text, reply_markup=markup, parse_mode=enums.ParseMode.HTML)
 
