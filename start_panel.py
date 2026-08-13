@@ -3,15 +3,24 @@ from pyrogram import enums
 from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from database import get_db, get_setting
 
-# 🎨 Telegram Premium Button Colors
-STYLES = [
-    enums.ButtonStyle.PRIMARY,  # 🟦 Blue Color
-    enums.ButtonStyle.SUCCESS,  # 🟩 Green Color
-    enums.ButtonStyle.DANGER    # 🟥 Red Color
-]
+# 🛡️ Safe check for ButtonStyle support (Prevents Heroku Crash)
+if hasattr(enums, "ButtonStyle"):
+    STYLES = [
+        enums.ButtonStyle.PRIMARY,  # 🟦 Blue Color
+        enums.ButtonStyle.SUCCESS,  # 🟩 Green Color
+        enums.ButtonStyle.DANGER    # 🟥 Red Color
+    ]
+else:
+    STYLES = []
+
+def get_random_style():
+    """ Safely passes style parameter only if supported by installed Pyrogram """
+    if STYLES:
+        return {"style": random.choice(STYLES)}
+    return {}
 
 def clean_url(url):
-    """ Auto-Fixer: Converting user input into a valid URL """
+    """ Auto-Fixer: Converts user input into a valid Telegram link """
     if not url:
         return None
     url = str(url).strip().replace(" ", "")
@@ -27,10 +36,8 @@ def clean_url(url):
 
 def get_colored_start_panel():
     """
-    Fetches active 1-7 slots from DB and attaches
-    random premium colors to each inline button.
+    Fetches active 1-7 slots from DB and safely creates buttons.
     """
-    # Fetch Active Slots from DB
     all_slots = get_db("SELECT id, chat_id, name, link FROM slots ORDER BY id ASC") or []
     
     active_slots = []
@@ -42,7 +49,7 @@ def get_colored_start_panel():
 
     inline_buttons = []
 
-    # Build 2-Buttons per row with Colored Styles
+    # Build 2-Buttons per row
     for i in range(0, len(active_slots), 2):
         row = []
         
@@ -53,11 +60,11 @@ def get_colored_start_panel():
             InlineKeyboardButton(
                 text=f"💜 {s1_name}",
                 url=s1[3],
-                style=random.choice(STYLES)  # Colored Style Applied
+                **get_random_style()
             )
         )
         
-        # Button 2 (If pair exists)
+        # Button 2
         if i + 1 < len(active_slots):
             s2 = active_slots[i+1]
             s2_name = s2[2] if (s2[2] and str(s2[2]).strip()) else f"Channel {s2[0]}"
@@ -65,20 +72,23 @@ def get_colored_start_panel():
                 InlineKeyboardButton(
                     text=f"💜 {s2_name}",
                     url=s2[3],
-                    style=random.choice(STYLES)  # Colored Style Applied
+                    **get_random_style()
                 )
             )
             
         inline_buttons.append(row)
 
-    # Check Joined Button (Set to SUCCESS / Green Style)
+    # Check Joined Button
     verify_url = clean_url(get_setting("verify_url"))
+    
+    check_style = {"style": enums.ButtonStyle.SUCCESS} if hasattr(enums, "ButtonStyle") else {}
+    
     if verify_url:
         inline_buttons.append([
             InlineKeyboardButton(
                 text="🟢 Check Joined", 
                 url=verify_url,
-                style=enums.ButtonStyle.SUCCESS
+                **check_style
             )
         ])
     else:
@@ -86,7 +96,7 @@ def get_colored_start_panel():
             InlineKeyboardButton(
                 text="🟢 Check Joined", 
                 callback_data="verify_sub",
-                style=enums.ButtonStyle.SUCCESS
+                **check_style
             )
         ])
 
