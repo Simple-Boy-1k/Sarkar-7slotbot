@@ -1,31 +1,27 @@
 # =========================================================
-# TELEGRAM CUSTOM PREMIUM EMOJI IDs
+# PASTE YOUR TELEGRAM PREMIUM EMOJI IDs HERE
+# (Agar ID nahi hai toh khali "" chhod dein, normal emoji chalega)
 # =========================================================
 
-PREMIUM_EMOJI_IDS = {
-    "FIRE": "6147565374289220368",
-    "SWORDS": "6147565374289220368",
-    "LOCK": "6147565374289220368",
-    "TELEGRAM": "6147565374289220368",
-    "KEY": "6147565374289220368",
-    "PURPLE_STAR": "6147565374289220368",
-    "GREEN_CHECK": "6147565374289220368"
-}
+ID_WELCOME_HEAD     = ""  # 🔴 Mark 1: Welcome se pehle (e.g. 🔥)
+ID_KEY_HEAD_LEFT1   = ""  # 🔴 Mark 2: How To Get Key ke left me pehla (e.g. 🟢)
+ID_KEY_HEAD_LEFT2   = ""  # 🔴 Mark 2: How To Get Key ke left me doosra (e.g. ⚡)
+ID_KEY_HEAD_RIGHT1  = ""  # 🔴 Mark 3: How To Get Key ke right me pehla (e.g. 💨)
+ID_KEY_HEAD_RIGHT2  = ""  # 🔴 Mark 3: How To Get Key ke right me doosra (e.g. 📈)
+ID_GET_KEY_LEFT     = ""  # 🔴 Mark 4: GET KEY ke left me (e.g. 🤫)
+ID_GET_KEY_RIGHT    = ""  # 🔴 Mark 5: GET KEY ke right me (e.g. 🔔)
 
-def get_custom_emoji(emoji_key: str, fallback_symbol: str) -> str:
-    """Returns HTML Tag for Custom Premium Emoji or Fallback Symbol."""
-    emoji_id = PREMIUM_EMOJI_IDS.get(emoji_key, "")
-    if emoji_id:
-        return f'<emoji id="{emoji_id}">{fallback_symbol}</emoji>'
-    return fallback_symbol
+# Helper Function
+def get_emoji(emoji_id: str, fallback: str) -> str:
+    if emoji_id and str(emoji_id).strip():
+        return f'<emoji id="{emoji_id.strip()}">{fallback}</emoji>'
+    return fallback
 
-# --- READY-TO-USE ICONS FOR CAPTION TEXT (Animated) ---
-ICON_FIRE = get_custom_emoji("FIRE", "🔥")
-ICON_SWORDS = get_custom_emoji("SWORDS", "⚔️")
-ICON_LOCK = get_custom_emoji("LOCK", "🚫")
-ICON_TELEGRAM = get_custom_emoji("TELEGRAM", "📬")
-ICON_KEY = get_custom_emoji("KEY", "🔑")
-
-# --- BUTTON ICONS (High Quality Unicode for Buttons) ---
-BTN_PURPLE_STAR = "💜"
-BTN_GREEN_CHECK = "🟢"
+# Formatted Premium Emojis
+EMOJI_WELCOME_HEAD    = get_emoji(ID_WELCOME_HEAD, "🔥")
+EMOJI_KEY_HEAD_LEFT1  = get_emoji(ID_KEY_HEAD_LEFT1, "🟢")
+EMOJI_KEY_HEAD_LEFT2  = get_emoji(ID_KEY_HEAD_LEFT2, "⚡")
+EMOJI_KEY_HEAD_RIGHT1 = get_emoji(ID_KEY_HEAD_RIGHT1, "💨")
+EMOJI_KEY_HEAD_RIGHT2 = get_emoji(ID_KEY_HEAD_RIGHT2, "📈")
+EMOJI_GET_KEY_LEFT    = get_emoji(ID_GET_KEY_LEFT, "🤫")
+EMOJI_GET_KEY_RIGHT   = get_emoji(ID_GET_KEY_RIGHT, "🔔")
