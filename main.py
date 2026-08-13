@@ -47,8 +47,6 @@ async def send_start_panel(client, message, user_id):
     full_name = f"{first_name} {last_name}".strip()
     mention = user.mention if user else full_name
 
-    # ---- LINK LOGIC ----
-    # Ab "Set Click Here" ya "Set GET KEY" dono me se jo bhi set hoga, wo text pe lagega
     raw_key = get_setting("get_key_url")
     raw_click = get_setting("click_url")
     
@@ -57,7 +55,6 @@ async def send_start_panel(client, message, user_id):
 
     header = f"{emojis.EMOJI_WELCOME_HEAD} <b>Welcome {full_name} :: ⚔️ :: MOD</b>\n\n"
     
-    # HOW TO GET KEY SECTION (Show only if link is set)
     if has_key_link:
         footer = (
             f"\n\n{emojis.EMOJI_KEY_HEAD_LEFT1} {emojis.EMOJI_KEY_HEAD_LEFT2} <b>How To Get Key</b> {emojis.EMOJI_KEY_HEAD_RIGHT1} {emojis.EMOJI_KEY_HEAD_RIGHT2}\n"
@@ -92,7 +89,6 @@ async def send_start_panel(client, message, user_id):
     all_slots = get_db("SELECT id, name, link FROM slots ORDER BY id ASC")
     active_slots = [s for s in all_slots if s[2] and s[2].strip()]
 
-    # Channels 2-column Grid
     for i in range(0, len(active_slots), 2):
         row = []
         s1 = active_slots[i]
@@ -102,9 +98,7 @@ async def send_start_panel(client, message, user_id):
             row.append(InlineKeyboardButton(text=f"💜 {s2[1] or f'Channel {s2[0]} '}", url=s2[2]))
         inline_buttons.append(row)
 
-    # Note: Alag se Click Here Inline button ko remove kar diya gaya hai.
-    
-    # Check Joined Button
+    # Check Joined Button (Supports both URL and Callback verification)
     verify_url = get_setting("verify_url")
     if verify_url and verify_url.strip():
         inline_buttons.append([InlineKeyboardButton(text="🟢 Check Joined", url=verify_url.strip())])
