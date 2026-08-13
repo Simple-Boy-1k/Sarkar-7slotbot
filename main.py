@@ -4,25 +4,7 @@ from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, Message, 
 
 from database import init_db, get_db, get_setting, is_admin
 from admin import setup_admin_handlers, user_states
-
-# ----------------- SAFE EMOJIS IMPORT (NO MORE IMPORT ERROR) ----------------- #
-try:
-    import emojis
-    ICON_FIRE = getattr(emojis, "ICON_FIRE", getattr(emojis, "EMOJI_FIRE", "🔥"))
-    ICON_SWORDS = getattr(emojis, "ICON_SWORDS", getattr(emojis, "EMOJI_SWORDS", "⚔️"))
-    ICON_LOCK = getattr(emojis, "ICON_LOCK", getattr(emojis, "EMOJI_LOCK", "🚫"))
-    ICON_TELEGRAM = getattr(emojis, "ICON_TELEGRAM", getattr(emojis, "EMOJI_TELEGRAM", "📬"))
-    ICON_KEY = getattr(emojis, "ICON_KEY", getattr(emojis, "EMOJI_KEY", "🔑"))
-    BTN_PURPLE_STAR = getattr(emojis, "BTN_PURPLE_STAR", "💜")
-    BTN_GREEN_CHECK = getattr(emojis, "BTN_GREEN_CHECK", "🟢")
-except Exception:
-    ICON_FIRE = "🔥"
-    ICON_SWORDS = "⚔️"
-    ICON_LOCK = "🚫"
-    ICON_TELEGRAM = "📬"
-    ICON_KEY = "🔑"
-    BTN_PURPLE_STAR = "💜"
-    BTN_GREEN_CHECK = "🟢"
+import emojis
 
 # ----------------- CONFIGURATION ----------------- #
 API_ID = int(os.environ.get("API_ID", "0"))
@@ -31,11 +13,8 @@ BOT_TOKEN = os.environ.get("BOT_TOKEN", "")
 OWNER_ID = int(os.environ.get("OWNER_ID", "0"))
 
 app = Client("Sarkar_7Slot_Bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
-
-# Initialize Database
 init_db()
 
-# ----------------- FORCE SUB CHECKER ----------------- #
 async def check_force_sub(client, user_id):
     slots = get_db("SELECT id, chat_id, name, link FROM slots ORDER BY id ASC")
     unjoined = []
@@ -53,84 +32,72 @@ async def check_force_sub(client, user_id):
                 unjoined.append((s_id, name or f"Channel {s_id}", link))
     return unjoined
 
-# ----------------- SEND START LAYOUT ----------------- #
 async def send_start_panel(client, message, user_id):
     if get_setting("bot_status") == "offline" and not is_admin(user_id, OWNER_ID):
         offline_chan = get_setting("offline_channel") or "https://t.me"
         return await message.reply_text(
-            f"🔴 <b>Bot is currently Offline for maintenance.</b>",
-            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(f"{BTN_PURPLE_STAR} Official Channel ↗", url=offline_chan)]]),
+            "🔴 <b>Bot is currently Offline for maintenance.</b>",
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Official Channel ↗", url=offline_chan)]]),
             parse_mode=enums.ParseMode.HTML
         )
 
-    # Dynamic User Details
     user = message.from_user
     first_name = user.first_name if user and user.first_name else "User"
     last_name = user.last_name if user and user.last_name else ""
     full_name = f"{first_name} {last_name}".strip()
     mention = user.mention if user else full_name
 
-    # Get Key Link from Database
     get_key_link = get_setting("get_key_url") or "https://t.me"
 
-    # CAPTION WITH IMPORTED EMOJIS
-    default_text = (
-        f"{ICON_FIRE} <b>Welcome {full_name} :: {ICON_SWORDS} :: MOD</b>\n\n"
-        f"{ICON_LOCK} <b>Join All Channels To Unlock</b> {ICON_TELEGRAM}\n\n"
-        f"🪩 🔗 <b>How To Get Key 💨 📉</b>\n"
-        f"<a href='{get_key_link}'>🤫 <b>GET KEY</b> {ICON_KEY}</a>"
+    # LAYOUT WITH MARKED PREMIUM EMOJI POSITIONS
+    header = f"{emojis.EMOJI_WELCOME_HEAD} <b>Welcome {full_name} :: ⚔️ :: MOD</b>\n\n"
+    
+    footer = (
+        f"\n\n{emojis.EMOJI_KEY_HEAD_LEFT1} {emojis.EMOJI_KEY_HEAD_LEFT2} <b>How To Get Key</b> {emojis.EMOJI_KEY_HEAD_RIGHT1} {emojis.EMOJI_KEY_HEAD_RIGHT2}\n"
+        f"{emojis.EMOJI_GET_KEY_LEFT} <a href='{get_key_link}'><b>GET KEY</b></a> {emojis.EMOJI_GET_KEY_RIGHT}"
     )
 
-    # ADMIN CUSTOM / PREMIUM TEXT OVERRIDE
     custom_text = get_setting("promo_text")
+
     if custom_text:
-        caption_text = custom_text.replace("{name}", full_name)\
-                                  .replace("{first_name}", first_name)\
-                                  .replace("{mention}", mention)\
-                                  .replace("{key_link}", get_key_link)\
-                                  .replace("{FIRE}", ICON_FIRE)\
-                                  .replace("{SWORDS}", ICON_SWORDS)\
-                                  .replace("{LOCK}", ICON_LOCK)\
-                                  .replace("{TELEGRAM}", ICON_TELEGRAM)\
-                                  .replace("{KEY}", ICON_KEY)
+        formatted_text = custom_text.replace("{name}", full_name)\
+                                    .replace("{first_name}", first_name)\
+                                    .replace("{mention}", mention)\
+                                    .replace("{key_link}", get_key_link)
+        
+        if "GET KEY" in custom_text or "How To Get Key" in custom_text:
+            caption_text = formatted_text
+        else:
+            caption_text = f"{header}{formatted_text}{footer}"
     else:
-        caption_text = default_text
+        middle = "🚫 <b>Join All Channels To Unlock</b> 📬"
+        caption_text = f"{header}{middle}{footer}"
 
     media_file = get_setting("media_file_id")
     media_type = get_setting("media_type")
     voice_file = get_setting("voice_file_id")
 
-    # ----------------- INLINE BUTTONS GRID ----------------- #
     inline_buttons = []
     all_slots = get_db("SELECT id, name, link FROM slots ORDER BY id ASC")
     active_slots = [s for s in all_slots if s[2] and s[2].strip()]
 
-    # 2-Column Grid
     for i in range(0, len(active_slots), 2):
         row = []
         s1 = active_slots[i]
-        row.append(InlineKeyboardButton(text=f"{BTN_PURPLE_STAR} {s1[1] or f'Channel {s1[0]}'} ↗", url=s1[2]))
+        row.append(InlineKeyboardButton(text=f"💜 {s1[1] or f'Channel {s1[0]}'} ↗", url=s1[2]))
         if i + 1 < len(active_slots):
             s2 = active_slots[i+1]
-            row.append(InlineKeyboardButton(text=f"{BTN_PURPLE_STAR} {s2[1] or f'Channel {s2[0]}'} ↗", url=s2[2]))
+            row.append(InlineKeyboardButton(text=f"💜 {s2[1] or f'Channel {s2[0]}'} ↗", url=s2[2]))
         inline_buttons.append(row)
 
-    # Extra Click Button (Optional)
-    click_name = get_setting("click_name")
-    click_url = get_setting("click_url")
-    if click_name and click_url:
-        inline_buttons.append([InlineKeyboardButton(text=f"✨ {click_name} ↗", url=click_url)])
-
-    # VERIFY BUTTON
     verify_url = get_setting("verify_url")
     if verify_url and verify_url.strip():
-        inline_buttons.append([InlineKeyboardButton(text=f"{BTN_GREEN_CHECK} Check Joined ↗", url=verify_url.strip())])
+        inline_buttons.append([InlineKeyboardButton(text="🟢 Check Joined ↗", url=verify_url.strip())])
     else:
-        inline_buttons.append([InlineKeyboardButton(text=f"{BTN_GREEN_CHECK} Check Joined ↗", callback_data="verify_sub")])
+        inline_buttons.append([InlineKeyboardButton(text="🟢 Check Joined ↗", callback_data="verify_sub")])
 
     markup = InlineKeyboardMarkup(inline_buttons)
 
-    # SEND MESSAGE
     if media_type == "photo" and media_file:
         await client.send_photo(message.chat.id, photo=media_file, caption=caption_text, reply_markup=markup, parse_mode=enums.ParseMode.HTML)
     elif media_type == "video" and media_file:
@@ -141,7 +108,6 @@ async def send_start_panel(client, message, user_id):
     if voice_file:
         await client.send_voice(message.chat.id, voice=voice_file)
 
-# ----------------- COMMANDS & CALLBACKS ----------------- #
 @app.on_message(filters.command("start"))
 async def start_cmd(client, message: Message):
     user_id = message.from_user.id
@@ -151,24 +117,21 @@ async def start_cmd(client, message: Message):
 
 @app.on_callback_query(filters.regex("verify_sub"))
 async def verify_cb(client, callback: CallbackQuery):
+    if get_setting("bot_status") == "offline" and not is_admin(callback.from_user.id, OWNER_ID):
+        return await callback.answer("🔴 Bot is currently offline for maintenance!", show_alert=True)
+
     user_id = callback.from_user.id
     unjoined = await check_force_sub(client, user_id)
     if unjoined:
         await callback.answer("❌ Aapne abhi tak saare channels join nahi kiye!", show_alert=True)
     else:
         await callback.answer("✅ Verified Successfully!", show_alert=False)
-        get_key_url = get_setting("get_key_url")
-        key_msg = f"🎉 <b>SUCCESS! All channels verified.</b>"
-        if get_key_url:
-            key_msg += f"\n\n🔑 <b>Your Key Link:</b> {get_key_url}"
-            
+        get_key_url = get_setting("get_key_url") or "https://t.me"
+        key_msg = f"🎉 <b>SUCCESS! All channels verified.</b>\n\n🔑 <b>Your Key Link:</b> {get_key_url}"
         await callback.message.delete()
         await client.send_message(callback.message.chat.id, key_msg, parse_mode=enums.ParseMode.HTML)
 
-# Setup Admin Control Handlers
 setup_admin_handlers(app, OWNER_ID, send_start_panel)
 
-# ----------------- START BOT ----------------- #
 if __name__ == "__main__":
-    print("Bot Starting...")
     app.run()
