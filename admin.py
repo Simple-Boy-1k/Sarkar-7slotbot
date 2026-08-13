@@ -6,7 +6,6 @@ user_states = {}
 
 def setup_admin_handlers(app: Client, owner_id: int, send_start_panel_fn):
     
-    # Clean & Professional Keyboard Layout
     admin_keyboard = ReplyKeyboardMarkup(
         [
             [KeyboardButton("✏️ Set Promo Text"), KeyboardButton("❌ Remove Promo")],
@@ -117,7 +116,7 @@ def setup_admin_handlers(app: Client, owner_id: int, send_start_panel_fn):
             elif text.startswith("✅ SLOT "):
                 slot_num = text.split(" ")[2]
                 user_states[user_id] = f"SET_SLOT_{slot_num}"
-                return await message.reply_text(f"✅ Send Data for SLOT {slot_num} in format:\nChannel ID | Channel Name | Invite Link\n\nTo remove send: `off`")
+                return await message.reply_text(f"✅ Send link or data for **SLOT {slot_num}**:\n(Aap seedha koi bhi link bhej sakte hain, save ho jayega!)")
 
         # ---------------- STATE (DATA) HANDLERS ----------------
         state = user_states.get(user_id)
@@ -198,14 +197,25 @@ def setup_admin_handlers(app: Client, owner_id: int, send_start_panel_fn):
                 user_states.pop(user_id, None)
                 return await message.reply_text(f"✅ SLOT {slot_id} Removed!")
 
-            if "|" not in input_text:
-                return await message.reply_text("❌ Format galat hai! Aise bhejein: Channel ID | Channel Name | Invite Link")
+            # Smart parsing: Agar user ne '|' diya hai toh theek, warna seedha link maan kar save kar lo!
+            if "|" in input_text:
+                parts = input_text.split("|")
+                if len(parts) >= 3:
+                    chat_id, name, link = [p.strip() for p in parts[:3]]
+                elif len(parts) == 2:
+                    chat_id = parts[0].strip()
+                    name = f"Channel {slot_id}"
+                    link = parts[1].strip()
+                else:
+                    chat_id = input_text
+                    name = f"Channel {slot_id}"
+                    link = input_text
+            else:
+                # Bina format ke seedha link bhejne par bhi save ho jayega!
+                link = input_text
+                chat_id = input_text
+                name = f"Channel {slot_id}"
             
-            parts = input_text.split("|")
-            if len(parts) != 3:
-                return await message.reply_text("❌ Format galat hai! Aise bhejein: Channel ID | Channel Name | Invite Link")
-            
-            chat_id, name, link = [p.strip() for p in parts]
             get_db("UPDATE slots SET chat_id = ?, name = ?, link = ? WHERE id = ?", (chat_id, name, link, int(slot_id)), commit=True)
             user_states.pop(user_id, None)
-            await message.reply_text(f"✅ SLOT {slot_id} Updated Successfully!")
+            await message.reply_text(f"✅ SLOT {slot_id} Saved Successfully!\n\n🔗 Link: {link}")
