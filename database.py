@@ -1,23 +1,23 @@
 import os
 from pymongo import MongoClient
 
-# Heroku ke Config Vars se MONGO_URI automatic uthayega
-MONGO_URI = os.getenv("MONGO_URI")
+# Aapka MongoDB Atlas Link seedha add kar diya gaya hai
+MONGO_URI = os.getenv("MONGO_URI") or "mongodb+srv://sksahnawaj89_db_user:4TjZxb4Xfz0O0TNr@cluster0.5raayqr.mongodb.net/?appName=Cluster0"
 
-if not MONGO_URI:
-    raise ValueError("❌ Error: Heroku Settings -> Config Vars mein MONGO_URI nahi mila!")
-
+# Connect to MongoDB
 client = MongoClient(MONGO_URI)
 db = client["telegram_bot_db"]
 
 settings_col = db["settings"]
 slots_col = db["slots"]
 users_col = db["users"]
+admins_col = db["admins"]
 
-# Initialize default slots if not present in MongoDB
-if slots_col.count_documents({}) == 0:
-    for i in range(1, 8):
-        slots_col.insert_one({"id": i, "chat_id": "", "name": f"Channel {i}", "link": ""})
+def init_db():
+    """main.py ke initialization ke liye"""
+    if slots_col.count_documents({}) == 0:
+        for i in range(1, 8):
+            slots_col.insert_one({"id": i, "chat_id": "", "name": f"Channel {i}", "link": ""})
 
 def set_setting(key, value):
     settings_col.update_one({"key": key}, {"$set": {"value": value}}, upsert=True)
@@ -26,8 +26,15 @@ def get_setting(key):
     res = settings_col.find_one({"key": key})
     return res["value"] if res else ""
 
+def is_admin(user_id: int, owner_id: int = None) -> bool:
+    """main.py ke admin check ke liye"""
+    if owner_id and user_id == owner_id:
+        return True
+    admin = admins_col.find_one({"user_id": user_id})
+    return bool(admin)
+
 def get_db(query, params=(), commit=False):
-    query_lower = query.strip().lower()
+    query_lower = str(query).strip().lower()
     
     # Total users count
     if "select count(*) from users" in query_lower:
@@ -59,3 +66,6 @@ def get_db(query, params=(), commit=False):
         return True
         
     return None
+
+# Database initialize
+init_db()
