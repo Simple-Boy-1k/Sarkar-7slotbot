@@ -47,12 +47,18 @@ async def send_start_panel(client, message, user_id):
     full_name = f"{first_name} {last_name}".strip()
     mention = user.mention if user else full_name
 
-    get_key_link = get_setting("get_key_url")
-
-    header = f"{emojis.EMOJI_WELCOME_HEAD} <b>Welcome {full_name}</b>\n\n"
+    # ---- LINK LOGIC ----
+    # Ab "Set Click Here" ya "Set GET KEY" dono me se jo bhi set hoga, wo text pe lagega
+    raw_key = get_setting("get_key_url")
+    raw_click = get_setting("click_url")
     
-    # How To Get Key section - ONLY IF LINK IS SET
-    if get_key_link and get_key_link.strip():
+    get_key_link = raw_click if (raw_click and raw_click.strip()) else raw_key
+    has_key_link = bool(get_key_link and get_key_link.strip())
+
+    header = f"{emojis.EMOJI_WELCOME_HEAD} <b>Welcome {full_name} :: ⚔️ :: MOD</b>\n\n"
+    
+    # HOW TO GET KEY SECTION (Show only if link is set)
+    if has_key_link:
         footer = (
             f"\n\n{emojis.EMOJI_KEY_HEAD_LEFT1} {emojis.EMOJI_KEY_HEAD_LEFT2} <b>How To Get Key</b> {emojis.EMOJI_KEY_HEAD_RIGHT1} {emojis.EMOJI_KEY_HEAD_RIGHT2}\n"
             f"{emojis.EMOJI_GET_KEY_LEFT} <a href='{get_key_link.strip()}'><b>GET KEY</b></a> {emojis.EMOJI_GET_KEY_RIGHT}"
@@ -67,7 +73,7 @@ async def send_start_panel(client, message, user_id):
                                     .replace("{first_name}", first_name)\
                                     .replace("{mention}", mention)
         
-        if get_key_link and get_key_link.strip():
+        if has_key_link:
             formatted_text = formatted_text.replace("{key_link}", get_key_link.strip())
 
         if "GET KEY" in custom_text or "How To Get Key" in custom_text:
@@ -96,12 +102,8 @@ async def send_start_panel(client, message, user_id):
             row.append(InlineKeyboardButton(text=f"💜 {s2[1] or f'Channel {s2[0]} '}", url=s2[2]))
         inline_buttons.append(row)
 
-    # Click Here Button (if set)
-    click_name = get_setting("click_name")
-    click_url = get_setting("click_url")
-    if click_name and click_url and click_url.strip():
-        inline_buttons.append([InlineKeyboardButton(text=f"✨ {click_name}", url=click_url.strip())])
-
+    # Note: Alag se Click Here Inline button ko remove kar diya gaya hai.
+    
     # Check Joined Button
     verify_url = get_setting("verify_url")
     if verify_url and verify_url.strip():
@@ -139,12 +141,18 @@ async def verify_cb(client, callback: CallbackQuery):
         await callback.answer("❌ Aapne abhi tak saare channels join nahi kiye!", show_alert=True)
     else:
         await callback.answer("✅ Verified Successfully!", show_alert=False)
-        get_key_url = get_setting("get_key_url")
+        
+        raw_key = get_setting("get_key_url")
+        raw_click = get_setting("click_url")
+        final_key_url = raw_click if (raw_click and raw_click.strip()) else raw_key
+        
         await callback.message.delete()
-        if get_key_url and get_key_url.strip():
-            key_msg = f"🎉 <b>SUCCESS! All channels verified.</b>\n\n🔑 <b>Your Key Link:</b> {get_key_url.strip()}"
+        
+        if final_key_url and final_key_url.strip():
+            key_msg = f"🎉 <b>SUCCESS! All channels verified.</b>\n\n🔑 <b>Your Key Link:</b> {final_key_url.strip()}"
         else:
             key_msg = "🎉 <b>SUCCESS! All channels verified.</b>"
+            
         await client.send_message(callback.message.chat.id, key_msg, parse_mode=enums.ParseMode.HTML, disable_web_page_preview=True)
 
 setup_admin_handlers(app, OWNER_ID, send_start_panel)
