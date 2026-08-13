@@ -18,13 +18,15 @@ OWNER_ID = int(os.environ.get("OWNER_ID", "0"))
 app = Client("Sarkar_7Slot_Bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
 init_db()
 
-# ----------------- CAPTION & TEXT BUILDER -----------------
+# ----------------- CAPTION & STATUS BUILDER -----------------
 def get_caption_and_status(user_full_name):
     status = get_setting("bot_status") or "online"
     offline_chan = clean_url(get_setting("offline_channel")) or "https://t.me"
     
+    # Safe offline button
+    btn_kwargs = {"style": enums.ButtonStyle.PRIMARY} if hasattr(enums, "ButtonStyle") else {}
     offline_markup = InlineKeyboardMarkup([
-        [InlineKeyboardButton("Official Channel", url=offline_chan, style=enums.ButtonStyle.PRIMARY)]
+        [InlineKeyboardButton("Official Channel", url=offline_chan, **btn_kwargs)]
     ])
 
     raw_key = get_setting("get_key_url")
@@ -101,7 +103,7 @@ async def start_cmd(client, message: Message):
                                .replace("{first_name}", first_name)\
                                .replace("{mention}", user.mention if user else full_name)
 
-    # Fetch Buttons with Colors from start_panel module
+    # Dynamic Colored Buttons
     markup, _ = get_colored_start_panel()
 
     chat_id = message.chat.id
@@ -129,7 +131,6 @@ async def start_cmd(client, message: Message):
 async def verify_cb(client, callback: CallbackQuery):
     user_id = callback.from_user.id
     
-    # Fetch current active slots
     _, active_slots = get_colored_start_panel()
 
     unjoined = await check_force_sub(client, user_id, active_slots)
@@ -160,5 +161,5 @@ async def send_start_panel_refresh(client, message, user_id):
 setup_admin_handlers(app, OWNER_ID, send_start_panel_refresh)
 
 if __name__ == "__main__":
-    print("🚀 Colored Start Panel Bot Active...")
+    print("🚀 Premium Colored Bot Engine Online...")
     app.run()
