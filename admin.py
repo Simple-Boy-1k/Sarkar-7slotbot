@@ -129,7 +129,7 @@ def setup_admin_handlers(app, OWNER_ID, start_panel_func):
 
         elif text == "✏️ Set Text Promo":
             user_states[user_id] = "SET_PROMO"
-            return await message.reply_text("✏️ Send new Promo Text for <code>/start</code>:", parse_mode=enums.ParseMode.HTML)
+            return await message.reply_text("✏️ Send new Promo Text for <code>/start</code>:\n\n<i>Tip: Use <code>{name}</code> for user's full name.</i>", parse_mode=enums.ParseMode.HTML)
 
         elif text == "❌ Remove Promo Text":
             set_setting("promo_text", None)
@@ -178,6 +178,14 @@ def setup_admin_handlers(app, OWNER_ID, start_panel_func):
             slot_num = text.replace("❌ Remove SLOT ", "").strip()
             get_db("UPDATE slots SET chat_id='', name='', link='' WHERE id=?", (slot_num,), commit=True)
             return await message.reply_text(f"✅ SLOT {slot_num} Removed!")
+
+        elif text == "✅ Verify":
+            user_states[user_id] = "SET_VERIFY_URL"
+            return await message.reply_text("⚙️ Send <b>Verify Button Link</b> (e.g. <code>https://t.me/...</code>):", parse_mode=enums.ParseMode.HTML)
+
+        elif text == "❌ Remove Verify":
+            set_setting("verify_url", None)
+            return await message.reply_text("✅ Verify Link removed! (Will use automatic check mode)")
 
         elif text == "📴 Set Offline Channel":
             user_states[user_id] = "SET_OFFLINE_CHAN"
@@ -231,6 +239,14 @@ def setup_admin_handlers(app, OWNER_ID, start_panel_func):
             set_setting("promo_text", text)
             user_states.pop(user_id, None)
             return await message.reply_text("✅ Promo Text Updated!")
+
+        elif state == "SET_VERIFY_URL":
+            if "http://" in text or "https://" in text or "t.me" in text:
+                set_setting("verify_url", text.strip())
+                user_states.pop(user_id, None)
+                return await message.reply_text(f"✅ <b>Verify Button Link Saved:</b>\n{text.strip()}", parse_mode=enums.ParseMode.HTML)
+            else:
+                return await message.reply_text("❌ Valid link (<code>https://...</code>) bhejein!", parse_mode=enums.ParseMode.HTML)
 
         elif state == "SET_GET_KEY":
             set_setting("get_key_url", text.strip())
