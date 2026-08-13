@@ -1,11 +1,7 @@
-import os
 from pymongo import MongoClient
 
-# Hosting ke environment variable se MONGO_URI uthayega
-MONGO_URI = os.getenv("MONGO_URI")
-
-if not MONGO_URI:
-    raise ValueError("❌ MONGO_URI environment variable is missing! Please set it in your hosting settings.")
+# Apna MongoDB Atlas connection string seedha yahan quotes ke andar daal do
+MONGO_URI = "apna_mongodb_connection_string_yahan_daalo"
 
 client = MongoClient(MONGO_URI)
 db = client["telegram_bot_db"]
@@ -26,7 +22,6 @@ def get_setting(key):
     res = settings_col.find_one({"key": key})
     return res["value"] if res else ""
 
-# Helper function to support admin.py seamlessly
 def get_db(query, params=(), commit=False):
     query_lower = query.strip().lower()
     
