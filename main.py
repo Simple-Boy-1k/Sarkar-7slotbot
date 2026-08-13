@@ -6,6 +6,7 @@ from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, Message, 
 from database import init_db, get_db, get_setting, is_admin
 from admin import setup_admin_handlers, user_states
 from start_logger import notify_owner_on_start
+from start_panel import get_colored_start_panel, clean_url
 import emojis
 
 # Configuration
@@ -17,32 +18,18 @@ OWNER_ID = int(os.environ.get("OWNER_ID", "0"))
 app = Client("Sarkar_7Slot_Bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
 init_db()
 
-# ----------------- SIMPLE AUTO LINK FIXER -----------------
-def fix_link(url):
-    """ Jo bhi link/username daaloge, usko automatic chalne wala link bana dega """
-    if not url:
-        return None
-    url = str(url).strip()
-    if not url or url.lower() in ["none", "null", "remove", "deleted"]:
-        return None
-    
-    if url.startswith("@"):
-        return f"https://t.me/{url[1:]}"
-    if not (url.startswith("http://") or url.startswith("https://") or url.startswith("tg://")):
-        return f"https://{url}"
-    return url
-
-# ----------------- DYNAMIC BUTTON BUILDER (DIRECT FROM DB) -----------------
-def get_start_panel_data(user_full_name):
-    """ Database se direct slots uthayega, taaki remove karte hi button instantly hat jaye """
-    
+# ----------------- CAPTION & TEXT BUILDER -----------------
+def get_caption_and_status(user_full_name):
     status = get_setting("bot_status") or "online"
-    offline_chan = fix_link(get_setting("offline_channel")) or "https://t.me"
-    offline_markup = InlineKeyboardMarkup([[InlineKeyboardButton("Official Channel", url=offline_chan)]])
+    offline_chan = clean_url(get_setting("offline_channel")) or "https://t.me"
+    
+    offline_markup = InlineKeyboardMarkup([
+        [InlineKeyboardButton("Official Channel", url=offline_chan, style=enums.ButtonStyle.PRIMARY)]
+    ])
 
     raw_key = get_setting("get_key_url")
     raw_click = get_setting("click_url")
-    get_key_link = fix_link(raw_click if (raw_click and str(raw_click).strip()) else raw_key)
+    get_key_link = clean_url(raw_click if (raw_click and str(raw_click).strip()) else raw_key)
     has_key_link = bool(get_key_link)
 
     header = f"{emojis.EMOJI_WELCOME_HEAD} <b>Welcome {user_full_name} 🌹</b>\n\n"
@@ -71,40 +58,7 @@ def get_start_panel_data(user_full_name):
         middle = "🚫 <b>𝐉𝐨𝐢𝐧 𝐀𝐥𝐥 𝐂𝐡𝐚𝐧𝐧𝐞𝐥𝐬 𝐓𝐨 𝐔𝐧𝐥𝐨𝐜𝐤 </b> 📬"
         caption_text = f"{header}{middle}{footer}"
 
-    # FETCH CURRENT ACTIVE SLOTS DIRECTLY FROM DB
-    all_slots = get_db("SELECT id, chat_id, name, link FROM slots ORDER BY id ASC") or []
-    
-    active_slots = []
-    for s in all_slots:
-        if isinstance(s, (list, tuple)) and len(s) >= 4 and s[3]:
-            clean_l = fix_link(s[3])
-            if clean_l:
-                active_slots.append((s[0], s[1], s[2], clean_l))
-
-    # MAKE 2-BUTTONS PER ROW
-    inline_buttons = []
-    for i in range(0, len(active_slots), 2):
-        row = []
-        s1 = active_slots[i]
-        s1_name = s1[2] if (s1[2] and str(s1[2]).strip()) else f"Channel {s1[0]}"
-        row.append(InlineKeyboardButton(text=f"💜 {s1_name}", url=s1[3]))
-        
-        if i + 1 < len(active_slots):
-            s2 = active_slots[i+1]
-            s2_name = s2[2] if (s2[2] and str(s2[2]).strip()) else f"Channel {s2[0]}"
-            row.append(InlineKeyboardButton(text=f"💜 {s2_name}", url=s2[3]))
-            
-        inline_buttons.append(row)
-
-    verify_url = fix_link(get_setting("verify_url"))
-    if verify_url:
-        inline_buttons.append([InlineKeyboardButton(text="🟢 Check Joined", url=verify_url)])
-    else:
-        inline_buttons.append([InlineKeyboardButton(text="🟢 Check Joined", callback_data="verify_sub")])
-
-    markup = InlineKeyboardMarkup(inline_buttons) if inline_buttons else None
-    
-    return status, offline_markup, caption_text, markup, active_slots
+    return status, offline_markup, caption_text
 
 # ----------------- PARALLEL FORCE SUB CHECK -----------------
 async def _check_single_slot(client, slot, user_id):
@@ -123,16 +77,14 @@ async def check_force_sub(client, user_id, active_slots):
     results = await asyncio.gather(*tasks)
     return [res for res in results if res is not None]
 
-# ----------------- /START COMMAND HANDLER -----------------
+# ----------------- /START COMMAND -----------------
 @app.on_message(filters.command("start"))
 async def start_cmd(client, message: Message):
     user_id = message.from_user.id
     
-    # Save User to DB
     asyncio.create_task(asyncio.to_thread(get_db, "INSERT OR IGNORE INTO users (user_id) VALUES (?)", (user_id,), True))
     user_states.pop(user_id, None)
 
-    # Notify Owner in Background
     notify_owner_on_start(client, OWNER_ID, message.from_user)
 
     user = message.from_user
@@ -140,8 +92,7 @@ async def start_cmd(client, message: Message):
     last_name = user.last_name if user and user.last_name else ""
     full_name = f"{first_name} {last_name}".strip()
 
-    # Dynamic Panel Fetch
-    status, offline_markup, caption_text, markup, _ = get_start_panel_data(full_name)
+    status, offline_markup, caption_text = get_caption_and_status(full_name)
 
     if status == "offline" and not is_admin(user_id, OWNER_ID):
         return await message.reply_text("🔴 <b>Bot is currently Offline for maintenance.</b>", reply_markup=offline_markup, parse_mode=enums.ParseMode.HTML)
@@ -149,6 +100,9 @@ async def start_cmd(client, message: Message):
     caption_text = caption_text.replace("{name}", full_name)\
                                .replace("{first_name}", first_name)\
                                .replace("{mention}", user.mention if user else full_name)
+
+    # Fetch Buttons with Colors from start_panel module
+    markup, _ = get_colored_start_panel()
 
     chat_id = message.chat.id
     media_file = get_setting("media_file_id")
@@ -163,7 +117,6 @@ async def start_cmd(client, message: Message):
         else:
             await client.send_message(chat_id, text=caption_text, reply_markup=markup, parse_mode=enums.ParseMode.HTML)
     except Exception:
-        # Fallback if media fails
         await client.send_message(chat_id, text=caption_text, reply_markup=markup, parse_mode=enums.ParseMode.HTML)
 
     if voice_file:
@@ -176,9 +129,8 @@ async def start_cmd(client, message: Message):
 async def verify_cb(client, callback: CallbackQuery):
     user_id = callback.from_user.id
     
-    # Fetch active slots directly
-    all_slots = get_db("SELECT id, chat_id, name, link FROM slots ORDER BY id ASC") or []
-    active_slots = [s for s in all_slots if isinstance(s, (list, tuple)) and len(s) >= 4 and s[3] and fix_link(s[3])]
+    # Fetch current active slots
+    _, active_slots = get_colored_start_panel()
 
     unjoined = await check_force_sub(client, user_id, active_slots)
     if unjoined:
@@ -188,7 +140,7 @@ async def verify_cb(client, callback: CallbackQuery):
         
         raw_key = get_setting("get_key_url")
         raw_click = get_setting("click_url")
-        final_key_url = fix_link(raw_click if (raw_click and str(raw_click).strip()) else raw_key)
+        final_key_url = clean_url(raw_click if (raw_click and str(raw_click).strip()) else raw_key)
         
         try:
             await callback.message.delete()
@@ -208,5 +160,5 @@ async def send_start_panel_refresh(client, message, user_id):
 setup_admin_handlers(app, OWNER_ID, send_start_panel_refresh)
 
 if __name__ == "__main__":
-    print("🚀 Simple & Instant Bot Engine Active...")
+    print("🚀 Colored Start Panel Bot Active...")
     app.run()
