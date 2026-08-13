@@ -58,7 +58,7 @@ async def send_start_panel(client, message, user_id):
     header = f"{emojis.EMOJI_WELCOME_HEAD} <b>Welcome {full_name} 🌹</b>\n\n"
     
     if has_key_link:
-        # \u00A0 se Telegram text ko aage shift kar dega aur trim nahi karega
+        # Indent for alignment
         indent = "\u00A0" * 8
         footer = (
             f"\n\n{emojis.EMOJI_KEY_HEAD_LEFT1} {emojis.EMOJI_KEY_HEAD_LEFT2} <b>𝐇𝐨𝐰 𝐓𝐨 𝐆𝐞𝐭 𝐊𝐞𝐲</b> {emojis.EMOJI_KEY_HEAD_RIGHT1} {emojis.EMOJI_KEY_HEAD_RIGHT2}\n"
@@ -82,7 +82,7 @@ async def send_start_panel(client, message, user_id):
         else:
             caption_text = f"{header}{formatted_text}{footer}"
     else:
-        middle = "🚫 <b>𝐉𝐨𝐢𝐧 𝐀𝐥𝐥 𝐂𝐡𝐚𝐧𝐧𝐞𝐥𝐬 𝐓𝐨 𝐔𝐧𝐥𝐨𝐜𝐤 </b> 📬"
+        middle = "🚫 <b>𝐉𝐨𝐢𝐧 𝐀𝐥𝐥 𝐂𝐡𝐚𝐧𝐧𝐞ls 𝐓𝐨 𝐔𝐧𝐥𝐨𝐜𝐤 </b> 📬"
         caption_text = f"{header}{middle}{footer}"
 
     media_file = get_setting("media_file_id")
@@ -119,10 +119,11 @@ async def send_start_panel(client, message, user_id):
 
     markup = InlineKeyboardMarkup(inline_buttons) if inline_buttons else None
 
+    # Video line fixed here (video=media_file)
     if media_type == "photo" and media_file:
         await client.send_photo(message.chat.id, photo=media_file, caption=caption_text, reply_markup=markup, parse_mode=enums.ParseMode.HTML)
     elif media_type == "video" and media_file:
-        await client.send_video(message.chat.id, video=message.chat.id, caption=caption_text, reply_markup=markup, parse_mode=enums.ParseMode.HTML)
+        await client.send_video(message.chat.id, video=media_file, caption=caption_text, reply_markup=markup, parse_mode=enums.ParseMode.HTML)
     else:
         await client.send_message(message.chat.id, text=caption_text, reply_markup=markup, parse_mode=enums.ParseMode.HTML)
 
