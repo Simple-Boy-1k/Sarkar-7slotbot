@@ -6,7 +6,7 @@ from database import init_db, get_db, get_setting, is_admin
 from admin import setup_admin_handlers, user_states
 import emojis
 
-# ----------------- CONFIGURATION ----------------- #
+# Configuration
 API_ID = int(os.environ.get("API_ID", "0"))
 API_HASH = os.environ.get("API_HASH", "")
 BOT_TOKEN = os.environ.get("BOT_TOKEN", "")
@@ -49,7 +49,6 @@ async def send_start_panel(client, message, user_id):
 
     get_key_link = get_setting("get_key_url") or "https://t.me"
 
-    # LAYOUT WITH MARKED PREMIUM EMOJI POSITIONS
     header = f"{emojis.EMOJI_WELCOME_HEAD} <b>Welcome {full_name} :: ⚔️ :: MOD</b>\n\n"
     
     footer = (
@@ -81,6 +80,7 @@ async def send_start_panel(client, message, user_id):
     all_slots = get_db("SELECT id, name, link FROM slots ORDER BY id ASC")
     active_slots = [s for s in all_slots if s[2] and s[2].strip()]
 
+    # Channels 2-column Grid
     for i in range(0, len(active_slots), 2):
         row = []
         s1 = active_slots[i]
@@ -90,6 +90,13 @@ async def send_start_panel(client, message, user_id):
             row.append(InlineKeyboardButton(text=f"💜 {s2[1] or f'Channel {s2[0]}'} ↗", url=s2[2]))
         inline_buttons.append(row)
 
+    # Click Here Button (if set)
+    click_name = get_setting("click_name")
+    click_url = get_setting("click_url")
+    if click_name and click_url:
+        inline_buttons.append([InlineKeyboardButton(text=f"✨ {click_name} ↗", url=click_url)])
+
+    # Check Joined Button
     verify_url = get_setting("verify_url")
     if verify_url and verify_url.strip():
         inline_buttons.append([InlineKeyboardButton(text="🟢 Check Joined ↗", url=verify_url.strip())])
