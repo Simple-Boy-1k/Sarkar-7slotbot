@@ -1,7 +1,11 @@
+import os
 from pymongo import MongoClient
 
-# Apna MongoDB Atlas connection string seedha yahan quotes ke andar daal do
-MONGO_URI = "apna_mongodb_connection_string_yahan_daalo"
+# Heroku ke Config Vars se MONGO_URI automatic uthayega
+MONGO_URI = os.getenv("MONGO_URI")
+
+if not MONGO_URI:
+    raise ValueError("❌ Error: Heroku Settings -> Config Vars mein MONGO_URI nahi mila!")
 
 client = MongoClient(MONGO_URI)
 db = client["telegram_bot_db"]
@@ -13,7 +17,7 @@ users_col = db["users"]
 # Initialize default slots if not present in MongoDB
 if slots_col.count_documents({}) == 0:
     for i in range(1, 8):
-        slots_col.insert_one({"id": i, "chat_id": "", "name": "", "link": ""})
+        slots_col.insert_one({"id": i, "chat_id": "", "name": f"Channel {i}", "link": ""})
 
 def set_setting(key, value):
     settings_col.update_one({"key": key}, {"$set": {"value": value}}, upsert=True)
@@ -38,10 +42,20 @@ def get_db(query, params=(), commit=False):
     # Update slots
     elif "update slots set" in query_lower:
         slot_id = params[-1]
-        chat_id = params[0] if len(params) > 2 else ""
-        name = params[1] if len(params) > 2 else f"Channel {slot_id}"
-        link = params[2] if len(params) > 2 else params[0]
-        slots_col.update_one({"id": int(slot_id)}, {"$set": {"chat_id": chat_id, "name": name, "link": link}})
+        if len(params) >= 4:
+            chat_id = params[0]
+            name = params[1]
+            link = params[2]
+        else:
+            chat_id = params[0] if len(params) > 1 else ""
+            name = f"Channel {slot_id}"
+            link = params[0] if len(params) > 1 else ""
+            
+        slots_col.update_one(
+            {"id": int(slot_id)}, 
+            {"$set": {"chat_id": str(chat_id), "name": str(name), "link": str(link)}},
+            upsert=True
+        )
         return True
         
     return None
