@@ -47,23 +47,29 @@ async def send_start_panel(client, message, user_id):
     full_name = f"{first_name} {last_name}".strip()
     mention = user.mention if user else full_name
 
-    get_key_link = get_setting("get_key_url") or "https://t.me"
+    get_key_link = get_setting("get_key_url")
 
     header = f"{emojis.EMOJI_WELCOME_HEAD} <b>Welcome {full_name} :: ⚔️ :: MOD</b>\n\n"
     
-    footer = (
-        f"\n\n{emojis.EMOJI_KEY_HEAD_LEFT1} {emojis.EMOJI_KEY_HEAD_LEFT2} <b>How To Get Key</b> {emojis.EMOJI_KEY_HEAD_RIGHT1} {emojis.EMOJI_KEY_HEAD_RIGHT2}\n"
-        f"{emojis.EMOJI_GET_KEY_LEFT} <a href='{get_key_link}'><b>GET KEY</b></a> {emojis.EMOJI_GET_KEY_RIGHT}"
-    )
+    # How To Get Key section - ONLY IF LINK IS SET
+    if get_key_link and get_key_link.strip():
+        footer = (
+            f"\n\n{emojis.EMOJI_KEY_HEAD_LEFT1} {emojis.EMOJI_KEY_HEAD_LEFT2} <b>How To Get Key</b> {emojis.EMOJI_KEY_HEAD_RIGHT1} {emojis.EMOJI_KEY_HEAD_RIGHT2}\n"
+            f"{emojis.EMOJI_GET_KEY_LEFT} <a href='{get_key_link.strip()}'><b>GET KEY</b></a> {emojis.EMOJI_GET_KEY_RIGHT}"
+        )
+    else:
+        footer = ""
 
     custom_text = get_setting("promo_text")
 
     if custom_text:
         formatted_text = custom_text.replace("{name}", full_name)\
                                     .replace("{first_name}", first_name)\
-                                    .replace("{mention}", mention)\
-                                    .replace("{key_link}", get_key_link)
+                                    .replace("{mention}", mention)
         
+        if get_key_link and get_key_link.strip():
+            formatted_text = formatted_text.replace("{key_link}", get_key_link.strip())
+
         if "GET KEY" in custom_text or "How To Get Key" in custom_text:
             caption_text = formatted_text
         else:
@@ -80,7 +86,7 @@ async def send_start_panel(client, message, user_id):
     all_slots = get_db("SELECT id, name, link FROM slots ORDER BY id ASC")
     active_slots = [s for s in all_slots if s[2] and s[2].strip()]
 
-    # Channels 2-column Grid (Arrow Remove Kardi Gayi Hai)
+    # Channels 2-column Grid
     for i in range(0, len(active_slots), 2):
         row = []
         s1 = active_slots[i]
@@ -93,8 +99,8 @@ async def send_start_panel(client, message, user_id):
     # Click Here Button (if set)
     click_name = get_setting("click_name")
     click_url = get_setting("click_url")
-    if click_name and click_url:
-        inline_buttons.append([InlineKeyboardButton(text=f"✨ {click_name}", url=click_url)])
+    if click_name and click_url and click_url.strip():
+        inline_buttons.append([InlineKeyboardButton(text=f"✨ {click_name}", url=click_url.strip())])
 
     # Check Joined Button
     verify_url = get_setting("verify_url")
@@ -133,12 +139,16 @@ async def verify_cb(client, callback: CallbackQuery):
         await callback.answer("❌ Aapne abhi tak saare channels join nahi kiye!", show_alert=True)
     else:
         await callback.answer("✅ Verified Successfully!", show_alert=False)
-        get_key_url = get_setting("get_key_url") or "https://t.me"
-        key_msg = f"🎉 <b>SUCCESS! All channels verified.</b>\n\n🔑 <b>Your Key Link:</b> {get_key_url}"
+        get_key_url = get_setting("get_key_url")
         await callback.message.delete()
-        await client.send_message(callback.message.chat.id, key_msg, parse_mode=enums.ParseMode.HTML)
+        if get_key_url and get_key_url.strip():
+            key_msg = f"🎉 <b>SUCCESS! All channels verified.</b>\n\n🔑 <b>Your Key Link:</b> {get_key_url.strip()}"
+        else:
+            key_msg = "🎉 <b>SUCCESS! All channels verified.</b>"
+        await client.send_message(callback.message.chat.id, key_msg, parse_mode=enums.ParseMode.HTML, disable_web_page_preview=True)
 
 setup_admin_handlers(app, OWNER_ID, send_start_panel)
 
 if __name__ == "__main__":
     app.run()
+
