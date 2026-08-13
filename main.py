@@ -1,4 +1,6 @@
 import os
+import time
+import asyncio
 from pyrogram import Client, filters, enums
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, Message, CallbackQuery
 
@@ -15,28 +17,59 @@ OWNER_ID = int(os.environ.get("OWNER_ID", "0"))
 app = Client("Sarkar_7Slot_Bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
 init_db()
 
+# ----------------- FAST CACHE SYSTEM -----------------
+_setting_cache = {}
+_setting_time = {}
+
+def get_setting_fast(key):
+    now = time.time()
+    if key in _setting_cache and (now - _setting_time.get(key, 0) < 3):
+        return _setting_cache[key]
+    val = get_setting(key)
+    _setting_cache[key] = val
+    _setting_time[key] = now
+    return val
+
+_slots_cache = None
+_slots_cache_time = 0
+
+def get_slots_fast():
+    global _slots_cache, _slots_cache_time
+    now = time.time()
+    if _slots_cache is not None and (now - _slots_cache_time < 3):
+        return _slots_cache
+    _slots_cache = get_db("SELECT id, chat_id, name, link FROM slots ORDER BY id ASC") or []
+    _slots_cache_time = now
+    return _slots_cache
+# ----------------------------------------------------
+
+# Single slot checking function
+async def _check_single_slot(client, slot, user_id):
+    if not isinstance(slot, (list, tuple)) or len(slot) < 4:
+        return None
+    s_id, chat_id, name, link = slot[0], slot[1], slot[2], slot[3]
+    if link and str(link).strip():
+        if chat_id and str(chat_id).strip():
+            try:
+                member = await client.get_chat_member(str(chat_id).strip(), user_id)
+                if member.status in [enums.ChatMemberStatus.BANNED, enums.ChatMemberStatus.LEFT]:
+                    return (s_id, name or f"Channel {s_id}", link)
+            except Exception:
+                return (s_id, name or f"Channel {s_id}", link)
+        else:
+            return (s_id, name or f"Channel {s_id}", link)
+    return None
+
+# FAST PARALLEL FORCE-SUB CHECK
 async def check_force_sub(client, user_id):
-    slots = get_db("SELECT id, chat_id, name, link FROM slots ORDER BY id ASC") or []
-    unjoined = []
-    for slot in slots:
-        if not isinstance(slot, (list, tuple)) or len(slot) < 4:
-            continue
-        s_id, chat_id, name, link = slot[0], slot[1], slot[2], slot[3]
-        if link and str(link).strip():
-            if chat_id and str(chat_id).strip():
-                try:
-                    member = await client.get_chat_member(str(chat_id).strip(), user_id)
-                    if member.status in [enums.ChatMemberStatus.BANNED, enums.ChatMemberStatus.LEFT]:
-                        unjoined.append((s_id, name or f"Channel {s_id}", link))
-                except Exception:
-                    unjoined.append((s_id, name or f"Channel {s_id}", link))
-            else:
-                unjoined.append((s_id, name or f"Channel {s_id}", link))
-    return unjoined
+    slots = get_slots_fast()
+    tasks = [_check_single_slot(client, slot, user_id) for slot in slots]
+    results = await asyncio.gather(*tasks)
+    return [res for res in results if res is not None]
 
 async def send_start_panel(client, message, user_id):
-    if get_setting("bot_status") == "offline" and not is_admin(user_id, OWNER_ID):
-        offline_chan = get_setting("offline_channel") or "https://t.me"
+    if get_setting_fast("bot_status") == "offline" and not is_admin(user_id, OWNER_ID):
+        offline_chan = get_setting_fast("offline_channel") or "https://t.me"
         return await message.reply_text(
             "🔴 <b>Bot is currently Offline for maintenance.</b>",
             reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Official Channel", url=offline_chan)]]),
@@ -49,8 +82,8 @@ async def send_start_panel(client, message, user_id):
     full_name = f"{first_name} {last_name}".strip()
     mention = user.mention if user else full_name
 
-    raw_key = get_setting("get_key_url")
-    raw_click = get_setting("click_url")
+    raw_key = get_setting_fast("get_key_url")
+    raw_click = get_setting_fast("click_url")
     
     get_key_link = raw_click if (raw_click and str(raw_click).strip()) else raw_key
     has_key_link = bool(get_key_link and str(get_key_link).strip())
@@ -58,7 +91,6 @@ async def send_start_panel(client, message, user_id):
     header = f"{emojis.EMOJI_WELCOME_HEAD} <b>Welcome {full_name} 🌹</b>\n\n"
     
     if has_key_link:
-        # Indent for alignment
         indent = "\u00A0" * 8
         footer = (
             f"\n\n{emojis.EMOJI_KEY_HEAD_LEFT1} {emojis.EMOJI_KEY_HEAD_LEFT2} <b>𝐇𝐨𝐰 𝐓𝐨 𝐆𝐞𝐭 𝐊𝐞𝐲</b> {emojis.EMOJI_KEY_HEAD_RIGHT1} {emojis.EMOJI_KEY_HEAD_RIGHT2}\n"
@@ -67,7 +99,7 @@ async def send_start_panel(client, message, user_id):
     else:
         footer = ""
 
-    custom_text = get_setting("promo_text")
+    custom_text = get_setting_fast("promo_text")
 
     if custom_text:
         formatted_text = str(custom_text).replace("{name}", full_name)\
@@ -82,15 +114,15 @@ async def send_start_panel(client, message, user_id):
         else:
             caption_text = f"{header}{formatted_text}{footer}"
     else:
-        middle = "🚫 <b>𝐉𝐨𝐢𝐧 𝐀𝐥𝐥 𝐂𝐡𝐚𝐧𝐧𝐞ls 𝐓𝐨 𝐔𝐧𝐥𝐨𝐜𝐤 </b> 📬"
+        middle = "🚫 <b>𝐉𝐨𝐢𝐧 𝐀𝐥𝐥 𝐂𝐡𝐚𝐧𝐧𝐞𝐥𝐬 𝐓𝐨 𝐔𝐧𝐥𝐨𝐜𝐤 </b> 📬"
         caption_text = f"{header}{middle}{footer}"
 
-    media_file = get_setting("media_file_id")
-    media_type = get_setting("media_type")
-    voice_file = get_setting("voice_file_id")
+    media_file = get_setting_fast("media_file_id")
+    media_type = get_setting_fast("media_type")
+    voice_file = get_setting_fast("voice_file_id")
 
     inline_buttons = []
-    all_slots = get_db("SELECT id, name, link FROM slots ORDER BY id ASC") or []
+    all_slots = get_slots_fast()
     
     active_slots = []
     for s in all_slots:
@@ -111,7 +143,7 @@ async def send_start_panel(client, message, user_id):
         inline_buttons.append(row)
 
     # Check Joined Button
-    verify_url = get_setting("verify_url")
+    verify_url = get_setting_fast("verify_url")
     if verify_url and str(verify_url).strip():
         inline_buttons.append([InlineKeyboardButton(text="🟢 Check Joined", url=str(verify_url).strip())])
     else:
@@ -119,7 +151,6 @@ async def send_start_panel(client, message, user_id):
 
     markup = InlineKeyboardMarkup(inline_buttons) if inline_buttons else None
 
-    # Video line fixed here (video=media_file)
     if media_type == "photo" and media_file:
         await client.send_photo(message.chat.id, photo=media_file, caption=caption_text, reply_markup=markup, parse_mode=enums.ParseMode.HTML)
     elif media_type == "video" and media_file:
@@ -133,13 +164,14 @@ async def send_start_panel(client, message, user_id):
 @app.on_message(filters.command("start"))
 async def start_cmd(client, message: Message):
     user_id = message.from_user.id
-    get_db("INSERT OR IGNORE INTO users (user_id) VALUES (?)", (user_id,), commit=True)
+    # Background non-blocking DB write
+    asyncio.create_task(asyncio.to_thread(get_db, "INSERT OR IGNORE INTO users (user_id) VALUES (?)", (user_id,), True))
     user_states.pop(user_id, None)
     await send_start_panel(client, message, user_id)
 
 @app.on_callback_query(filters.regex("verify_sub"))
 async def verify_cb(client, callback: CallbackQuery):
-    if get_setting("bot_status") == "offline" and not is_admin(callback.from_user.id, OWNER_ID):
+    if get_setting_fast("bot_status") == "offline" and not is_admin(callback.from_user.id, OWNER_ID):
         return await callback.answer("🔴 Bot is currently offline for maintenance!", show_alert=True)
 
     user_id = callback.from_user.id
@@ -149,8 +181,8 @@ async def verify_cb(client, callback: CallbackQuery):
     else:
         await callback.answer("✅ Verified Successfully!", show_alert=False)
         
-        raw_key = get_setting("get_key_url")
-        raw_click = get_setting("click_url")
+        raw_key = get_setting_fast("get_key_url")
+        raw_click = get_setting_fast("click_url")
         final_key_url = raw_click if (raw_click and str(raw_click).strip()) else raw_key
         
         try:
