@@ -17,13 +17,18 @@ OWNER_ID = int(os.environ.get("OWNER_ID", "0"))
 app = Client("Sarkar_7Slot_Bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
 init_db()
 
-# ----------------- FAST CAPTION BUILDER -----------------
+# ----------------- FAST CAPTION BUILDER (CRASH-PROOF) -----------------
 def get_caption_and_status(user_full_name):
     status = get_setting("bot_status") or "online"
     offline_chan = clean_url(get_setting("offline_channel")) or "https://t.me"
     
+    # Safe Button Creation (AttributeError Fix)
+    offline_btn_kwargs = {"text": "Official Channel", "url": offline_chan}
+    if hasattr(enums, "ButtonStyle") and hasattr(enums.ButtonStyle, "PRIMARY"):
+        offline_btn_kwargs["style"] = enums.ButtonStyle.PRIMARY
+
     offline_markup = InlineKeyboardMarkup([
-        [InlineKeyboardButton("Official Channel", url=offline_chan, style=enums.ButtonStyle.PRIMARY)]
+        [InlineKeyboardButton(**offline_btn_kwargs)]
     ])
 
     raw_key = get_setting("get_key_url")
@@ -75,16 +80,16 @@ async def check_force_sub(client, user_id, active_slots):
     results = await asyncio.gather(*tasks)
     return [res for res in results if res is not None]
 
-# ----------------- /START COMMAND (INSTANT SPEED & NO CRASH) -----------------
+# ----------------- /START COMMAND (SUPER FAST & SAFE) -----------------
 @app.on_message(filters.command("start"))
 async def start_cmd(client, message: Message):
     user_id = message.from_user.id
     
-    # Background tasks
+    # Background non-blocking tasks
     asyncio.create_task(asyncio.to_thread(get_db, "INSERT OR IGNORE INTO users (user_id) VALUES (?)", (user_id,), True))
     user_states.pop(user_id, None)
     
-    # Send Logger without crashing event loop
+    # Safe Logger Call (No Event Loop Error)
     asyncio.create_task(notify_owner_on_start(client, OWNER_ID, message.from_user))
 
     user = message.from_user
@@ -159,5 +164,5 @@ async def send_start_panel_refresh(client, message, user_id):
 setup_admin_handlers(app, OWNER_ID, send_start_panel_refresh)
 
 if __name__ == "__main__":
-    print("🚀 Ultra-Fast Colored Bot Started...")
+    print("🚀 Ultra-Fast Fixed Bot Started...")
     app.run()
