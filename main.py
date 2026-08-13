@@ -17,7 +17,7 @@ OWNER_ID = int(os.environ.get("OWNER_ID", "0"))
 app = Client("Sarkar_7Slot_Bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
 init_db()
 
-# ----------------- URL CLEANER (PREVENTS 400 BUTTON_URL_INVALID) -----------------
+# ----------------- URL CLEANER (PREVENTS 400 ERROR) -----------------
 def clean_url(url):
     if not url:
         return None
@@ -28,13 +28,14 @@ def clean_url(url):
         url = f"https://{url}"
     return url
 
-# ----------------- FAST CACHE SYSTEM -----------------
+# ----------------- IN-MEMORY CACHE (INSTANT LOADS) -----------------
+CACHE_TTL = 5  # 5 Seconds cache
 _setting_cache = {}
 _setting_time = {}
 
 def get_setting_fast(key):
     now = time.time()
-    if key in _setting_cache and (now - _setting_time.get(key, 0) < 3):
+    if key in _setting_cache and (now - _setting_time.get(key, 0) < CACHE_TTL):
         return _setting_cache[key]
     val = get_setting(key)
     _setting_cache[key] = val
@@ -47,7 +48,7 @@ _slots_cache_time = 0
 def get_slots_fast():
     global _slots_cache, _slots_cache_time
     now = time.time()
-    if _slots_cache is not None and (now - _slots_cache_time < 3):
+    if _slots_cache is not None and (now - _slots_cache_time < CACHE_TTL):
         return _slots_cache
     _slots_cache = get_db("SELECT id, chat_id, name, link FROM slots ORDER BY id ASC") or []
     _slots_cache_time = now
@@ -77,7 +78,7 @@ async def check_force_sub(client, user_id):
     results = await asyncio.gather(*tasks)
     return [res for res in results if res is not None]
 
-# ----------------- START PANEL -----------------
+# ----------------- START PANEL SENDER -----------------
 async def send_start_panel(client, message, user_id):
     if get_setting_fast("bot_status") == "offline" and not is_admin(user_id, OWNER_ID):
         offline_chan = clean_url(get_setting_fast("offline_channel")) or "https://t.me"
@@ -135,10 +136,7 @@ async def send_start_panel(client, message, user_id):
     inline_buttons = []
     all_slots = get_slots_fast()
     
-    active_slots = []
-    for s in all_slots:
-        if isinstance(s, (list, tuple)) and len(s) >= 4 and s[3] and str(s[3]).strip():
-            active_slots.append(s)
+    active_slots = [s for s in all_slots if isinstance(s, (list, tuple)) and len(s) >= 4 and s[3] and str(s[3]).strip()]
 
     for i in range(0, len(active_slots), 2):
         row = []
@@ -167,21 +165,26 @@ async def send_start_panel(client, message, user_id):
 
     markup = InlineKeyboardMarkup(inline_buttons) if inline_buttons else None
 
+    # Immediate Message Dispatch
+    chat_id = message.chat.id
     if media_type == "photo" and media_file:
-        await client.send_photo(message.chat.id, photo=media_file, caption=caption_text, reply_markup=markup, parse_mode=enums.ParseMode.HTML)
+        await client.send_photo(chat_id, photo=media_file, caption=caption_text, reply_markup=markup, parse_mode=enums.ParseMode.HTML)
     elif media_type == "video" and media_file:
-        await client.send_video(message.chat.id, video=media_file, caption=caption_text, reply_markup=markup, parse_mode=enums.ParseMode.HTML)
+        await client.send_video(chat_id, video=media_file, caption=caption_text, reply_markup=markup, parse_mode=enums.ParseMode.HTML)
     else:
-        await client.send_message(message.chat.id, text=caption_text, reply_markup=markup, parse_mode=enums.ParseMode.HTML)
+        await client.send_message(chat_id, text=caption_text, reply_markup=markup, parse_mode=enums.ParseMode.HTML)
 
     if voice_file:
-        await client.send_voice(message.chat.id, voice=voice_file)
+        await client.send_voice(chat_id, voice=voice_file)
 
 @app.on_message(filters.command("start"))
 async def start_cmd(client, message: Message):
     user_id = message.from_user.id
-    asyncio.create_task(asyncio.to_thread(get_db, "INSERT OR IGNORE INTO users (user_id) VALUES (?)", (user_id,), True))
     user_states.pop(user_id, None)
+    
+    # Save user in DB without blocking the start command execution
+    asyncio.create_task(asyncio.to_thread(get_db, "INSERT OR IGNORE INTO users (user_id) VALUES (?)", (user_id,), True))
+    
     await send_start_panel(client, message, user_id)
 
 @app.on_callback_query(filters.regex("verify_sub"))
