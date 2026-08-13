@@ -53,7 +53,7 @@ async def send_start_panel(client, message, user_id):
     get_key_link = raw_click if (raw_click and raw_click.strip()) else raw_key
     has_key_link = bool(get_key_link and get_key_link.strip())
 
-    header = f"{emojis.EMOJI_WELCOME_HEAD} <b>Welcome {full_name} :: ⚔️ :: MOD</b>\n\n"
+    header = f"{emojis.EMOJI_WELCOME_HEAD} <b>Welcome {full_name}👀</b>\n\n"
     
     if has_key_link:
         footer = (
@@ -73,12 +73,12 @@ async def send_start_panel(client, message, user_id):
         if has_key_link:
             formatted_text = formatted_text.replace("{key_link}", get_key_link.strip())
 
-        if "GET KEY" in custom_text or "How To Get Key" in custom_text:
+        if "𝐆𝐞𝐭 𝐊𝐞𝐲" in custom_text or "𝐇𝐨𝐰 𝐓𝐨 𝐆𝐞𝐭 𝐊𝐞𝐲" in custom_text:
             caption_text = formatted_text
         else:
             caption_text = f"{header}{formatted_text}{footer}"
     else:
-        middle = "🚫 <b>Join All Channels To Unlock</b> 📬"
+        middle = "🚫 <b>𝐉𝐨𝐢𝐧 𝐀𝐥𝐥 𝐂𝐡𝐚𝐦𝐦𝐞𝐥𝐬 𝐓𝐨 𝐔𝐧𝐥𝐨𝐜𝐤 </b> 📬"
         caption_text = f"{header}{middle}{footer}"
 
     media_file = get_setting("media_file_id")
