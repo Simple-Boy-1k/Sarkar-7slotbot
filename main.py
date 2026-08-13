@@ -37,7 +37,7 @@ async def send_start_panel(client, message, user_id):
         offline_chan = get_setting("offline_channel") or "https://t.me"
         return await message.reply_text(
             "🔴 <b>Bot is currently Offline for maintenance.</b>",
-            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Official Channel ↗", url=offline_chan)]]),
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Official Channel", url=offline_chan)]]),
             parse_mode=enums.ParseMode.HTML
         )
 
@@ -80,28 +80,28 @@ async def send_start_panel(client, message, user_id):
     all_slots = get_db("SELECT id, name, link FROM slots ORDER BY id ASC")
     active_slots = [s for s in all_slots if s[2] and s[2].strip()]
 
-    # Channels 2-column Grid
+    # Channels 2-column Grid (Arrow Remove Kardi Gayi Hai)
     for i in range(0, len(active_slots), 2):
         row = []
         s1 = active_slots[i]
-        row.append(InlineKeyboardButton(text=f"💜 {s1[1] or f'Channel {s1[0]}'} ↗", url=s1[2]))
+        row.append(InlineKeyboardButton(text=f"💜 {s1[1] or f'Channel {s1[0]} '}", url=s1[2]))
         if i + 1 < len(active_slots):
             s2 = active_slots[i+1]
-            row.append(InlineKeyboardButton(text=f"💜 {s2[1] or f'Channel {s2[0]}'} ↗", url=s2[2]))
+            row.append(InlineKeyboardButton(text=f"💜 {s2[1] or f'Channel {s2[0]} '}", url=s2[2]))
         inline_buttons.append(row)
 
     # Click Here Button (if set)
     click_name = get_setting("click_name")
     click_url = get_setting("click_url")
     if click_name and click_url:
-        inline_buttons.append([InlineKeyboardButton(text=f"✨ {click_name} ↗", url=click_url)])
+        inline_buttons.append([InlineKeyboardButton(text=f"✨ {click_name}", url=click_url)])
 
     # Check Joined Button
     verify_url = get_setting("verify_url")
     if verify_url and verify_url.strip():
-        inline_buttons.append([InlineKeyboardButton(text="🟢 Check Joined ↗", url=verify_url.strip())])
+        inline_buttons.append([InlineKeyboardButton(text="🟢 Check Joined", url=verify_url.strip())])
     else:
-        inline_buttons.append([InlineKeyboardButton(text="🟢 Check Joined ↗", callback_data="verify_sub")])
+        inline_buttons.append([InlineKeyboardButton(text="🟢 Check Joined", callback_data="verify_sub")])
 
     markup = InlineKeyboardMarkup(inline_buttons)
 
