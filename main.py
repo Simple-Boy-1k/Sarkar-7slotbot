@@ -5,6 +5,7 @@ from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, Message, 
 
 from database import init_db, get_db, get_setting, is_admin
 from admin import setup_admin_handlers, user_states
+from start_logger import notify_owner_on_start  # 👈 Naya Logger Import
 import emojis
 
 # Configuration
@@ -40,7 +41,7 @@ START_CACHE = {
 }
 
 def build_start_cache():
-    """ Runs once at startup & updates in RAM for ZERO delay on /start """
+    """ Pre-computes start panel details in RAM for zero delay """
     global START_CACHE
     
     status = get_setting("bot_status") or "online"
@@ -144,9 +145,12 @@ async def check_force_sub(client, user_id):
 async def start_cmd(client, message: Message):
     user_id = message.from_user.id
     
-    # Non-blocking DB save
+    # 1. Non-blocking DB save
     asyncio.create_task(asyncio.to_thread(get_db, "INSERT OR IGNORE INTO users (user_id) VALUES (?)", (user_id,), True))
     user_states.pop(user_id, None)
+
+    # 2. Notify Owner (BACKGROUND TASK - 0 Delay for User) 🚀
+    notify_owner_on_start(client, OWNER_ID, message.from_user)
 
     # Offline check
     if START_CACHE["status"] == "offline" and not is_admin(user_id, OWNER_ID):
@@ -158,7 +162,6 @@ async def start_cmd(client, message: Message):
     full_name = f"{first_name} {last_name}".strip()
     mention = user.mention if user else full_name
 
-    # Quick dynamic name replacement (Nanoseconds)
     caption_text = START_CACHE["caption_template"].replace("{name}", full_name)\
                                                   .replace("{first_name}", first_name)\
                                                   .replace("{mention}", mention)
@@ -215,5 +218,5 @@ async def send_start_panel_refresh(client, message, user_id):
 setup_admin_handlers(app, OWNER_ID, send_start_panel_refresh)
 
 if __name__ == "__main__":
-    print("🚀 Pre-Built Fast Engine Starting...")
+    print("🚀 Pre-Built Fast Engine + Start Logger Active...")
     app.run()
