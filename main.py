@@ -49,7 +49,7 @@ async def send_start_panel(client, message, user_id):
 
     get_key_link = get_setting("get_key_url")
 
-    header = f"{emojis.EMOJI_WELCOME_HEAD} <b>Welcome {full_name} :: ⚔️ :: MOD</b>\n\n"
+    header = f"{emojis.EMOJI_WELCOME_HEAD} <b>Welcome {full_name}</b>\n\n"
     
     # How To Get Key section - ONLY IF LINK IS SET
     if get_key_link and get_key_link.strip():
