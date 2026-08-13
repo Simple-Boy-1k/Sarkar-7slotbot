@@ -7,7 +7,6 @@ from database import init_db, get_db, get_setting, is_admin
 from admin import setup_admin_handlers, user_states
 from start_logger import notify_owner_on_start
 from start_panel import get_colored_start_panel, clean_url
-import emojis
 
 # Configuration
 API_ID = int(os.environ.get("API_ID", "0"))
@@ -18,15 +17,13 @@ OWNER_ID = int(os.environ.get("OWNER_ID", "0"))
 app = Client("Sarkar_7Slot_Bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
 init_db()
 
-# ----------------- CAPTION & STATUS BUILDER -----------------
+# ----------------- FAST CAPTION BUILDER -----------------
 def get_caption_and_status(user_full_name):
     status = get_setting("bot_status") or "online"
     offline_chan = clean_url(get_setting("offline_channel")) or "https://t.me"
     
-    # Safe offline button
-    btn_kwargs = {"style": enums.ButtonStyle.PRIMARY} if hasattr(enums, "ButtonStyle") else {}
     offline_markup = InlineKeyboardMarkup([
-        [InlineKeyboardButton("Official Channel", url=offline_chan, **btn_kwargs)]
+        [InlineKeyboardButton("Official Channel", url=offline_chan, style=enums.ButtonStyle.PRIMARY)]
     ])
 
     raw_key = get_setting("get_key_url")
@@ -34,13 +31,13 @@ def get_caption_and_status(user_full_name):
     get_key_link = clean_url(raw_click if (raw_click and str(raw_click).strip()) else raw_key)
     has_key_link = bool(get_key_link)
 
-    header = f"{emojis.EMOJI_WELCOME_HEAD} <b>Welcome {user_full_name} 🌹</b>\n\n"
+    # 🔥 Screenshot 2 Exact Header & Emojis Design
+    header = f"🔥 <b>Welcome {user_full_name}</b>\n\n"
     
     if has_key_link:
-        indent = "\u00A0" * 8
         footer = (
-            f"\n\n{emojis.EMOJI_KEY_HEAD_LEFT1} {emojis.EMOJI_KEY_HEAD_LEFT2} <b>𝐇𝐨𝐰 𝐓𝐨 𝐆𝐞𝐭 𝐊𝐞𝐲</b> {emojis.EMOJI_KEY_HEAD_RIGHT1} {emojis.EMOJI_KEY_HEAD_RIGHT2}\n"
-            f"{indent}{emojis.EMOJI_GET_KEY_LEFT} <a href='{get_key_link}'><b>𝐆𝐞𝐭 𝐊𝐞𝐲 </b></a> {emojis.EMOJI_GET_KEY_RIGHT}"
+            f"\n\n🟢✈️ <b>How To Get Key</b> 💨📈\n"
+            f"😱 <a href='{get_key_link}'><b>GET KEY</b></a> 🔔"
         )
     else:
         footer = ""
@@ -52,17 +49,17 @@ def get_caption_and_status(user_full_name):
         if has_key_link:
             formatted_text = formatted_text.replace("{key_link}", get_key_link)
 
-        if "𝐆𝐞𝐭 𝐊𝐞𝐲" in custom_text or "𝐇𝐨𝐰 𝐓𝐨 𝐆𝐞𝐭 𝐊𝐞𝐲" in custom_text:
+        if "GET KEY" in custom_text or "How To Get Key" in custom_text or "𝐆𝐞𝐭 𝐊𝐞𝐲" in custom_text:
             caption_text = formatted_text
         else:
             caption_text = f"{header}{formatted_text}{footer}"
     else:
-        middle = "🚫 <b>𝐉𝐨𝐢𝐧 𝐀𝐥𝐥 𝐂𝐡𝐚𝐧𝐧𝐞𝐥𝐬 𝐓𝐨 𝐔𝐧𝐥𝐨𝐜𝐤 </b> 📬"
+        middle = "🚫 <b>Join All Channels To Unlock</b> 📬"
         caption_text = f"{header}{middle}{footer}"
 
     return status, offline_markup, caption_text
 
-# ----------------- PARALLEL FORCE SUB CHECK -----------------
+# ----------------- PARALLEL FAST FORCE SUB CHECK -----------------
 async def _check_single_slot(client, slot, user_id):
     s_id, chat_id, name, link = slot[0], slot[1], slot[2], slot[3]
     if chat_id and str(chat_id).strip():
@@ -79,15 +76,15 @@ async def check_force_sub(client, user_id, active_slots):
     results = await asyncio.gather(*tasks)
     return [res for res in results if res is not None]
 
-# ----------------- /START COMMAND -----------------
+# ----------------- /START COMMAND (INSTANT SPEED) -----------------
 @app.on_message(filters.command("start"))
 async def start_cmd(client, message: Message):
     user_id = message.from_user.id
     
+    # Background non-blocking tasks for speed
     asyncio.create_task(asyncio.to_thread(get_db, "INSERT OR IGNORE INTO users (user_id) VALUES (?)", (user_id,), True))
     user_states.pop(user_id, None)
-
-    notify_owner_on_start(client, OWNER_ID, message.from_user)
+    asyncio.create_task(asyncio.to_thread(notify_owner_on_start, client, OWNER_ID, message.from_user))
 
     user = message.from_user
     first_name = user.first_name if user and user.first_name else "User"
@@ -103,7 +100,7 @@ async def start_cmd(client, message: Message):
                                .replace("{first_name}", first_name)\
                                .replace("{mention}", user.mention if user else full_name)
 
-    # Dynamic Colored Buttons
+    # Fetch Bright Blue/Green Buttons
     markup, _ = get_colored_start_panel()
 
     chat_id = message.chat.id
@@ -161,5 +158,5 @@ async def send_start_panel_refresh(client, message, user_id):
 setup_admin_handlers(app, OWNER_ID, send_start_panel_refresh)
 
 if __name__ == "__main__":
-    print("🚀 Premium Colored Bot Engine Online...")
+    print("🚀 Ultra-Fast Ultra-Colored Bot Started...")
     app.run()
