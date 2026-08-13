@@ -1,11 +1,12 @@
 import os
+import re
 import asyncio
 from pyrogram import Client, filters, enums
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, Message, CallbackQuery
 
 from database import init_db, get_db, get_setting, is_admin
 from admin import setup_admin_handlers, user_states
-from start_logger import notify_owner_on_start  # 👈 Naya Logger Import
+from start_logger import notify_owner_on_start
 import emojis
 
 # Configuration
@@ -17,16 +18,31 @@ OWNER_ID = int(os.environ.get("OWNER_ID", "0"))
 app = Client("Sarkar_7Slot_Bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
 init_db()
 
-# ----------------- URL CLEANER -----------------
+# ----------------- BULLETPROOF URL CLEANER & VALIDATOR -----------------
 def clean_url(url):
     if not url:
         return None
     url = str(url).strip()
-    if not url:
+    # If URL contains spaces or is too short, reject it
+    if not url or " " in url or len(url) < 3:
         return None
+    
     if not (url.startswith("http://") or url.startswith("https://") or url.startswith("t.me/") or url.startswith("tg://")):
         url = f"https://{url}"
-    return url
+    
+    if url.startswith("t.me/"):
+        url = f"https://{url}"
+
+    # Strict URL validation regex pattern
+    pattern = re.compile(
+        r'^(https?://|tg://)'
+        r'([a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}(:\d+)?(/.*)?$',
+        re.IGNORECASE
+    )
+    
+    if url.startswith("tg://") or bool(pattern.match(url)):
+        return url
+    return None
 
 # ----------------- GLOBAL PRE-BUILT RAM CACHE -----------------
 START_CACHE = {
@@ -79,9 +95,9 @@ def build_start_cache():
         middle = "🚫 <b>𝐉𝐨𝐢𝐧 𝐀𝐥𝐥 𝐂𝐡𝐚𝐧𝐧𝐞𝐥𝐬 𝐓𝐨 𝐔𝐧𝐥𝐨𝐜𝐤 </b> 📬"
         caption_template = f"{header}{middle}{footer}"
 
-    # Build Buttons Pre-hand
+    # Build Buttons Pre-hand with strict URL checks
     all_slots = get_db("SELECT id, chat_id, name, link FROM slots ORDER BY id ASC") or []
-    active_slots = [s for s in all_slots if isinstance(s, (list, tuple)) and len(s) >= 4 and s[3] and str(s[3]).strip()]
+    active_slots = [s for s in all_slots if isinstance(s, (list, tuple)) and len(s) >= 4 and s[3] and clean_url(s[3])]
 
     inline_buttons = []
     for i in range(0, len(active_slots), 2):
@@ -149,7 +165,7 @@ async def start_cmd(client, message: Message):
     asyncio.create_task(asyncio.to_thread(get_db, "INSERT OR IGNORE INTO users (user_id) VALUES (?)", (user_id,), True))
     user_states.pop(user_id, None)
 
-    # 2. Notify Owner (BACKGROUND TASK - 0 Delay for User) 🚀
+    # 2. Notify Owner (BACKGROUND TASK - 0 Delay for User)
     notify_owner_on_start(client, OWNER_ID, message.from_user)
 
     # Offline check
@@ -171,16 +187,29 @@ async def start_cmd(client, message: Message):
     media_type = START_CACHE["media_type"]
     markup = START_CACHE["markup"]
 
-    # INSTANT SEND
-    if media_type == "photo" and media_file:
-        await client.send_photo(chat_id, photo=media_file, caption=caption_text, reply_markup=markup, parse_mode=enums.ParseMode.HTML)
-    elif media_type == "video" and media_file:
-        await client.send_video(chat_id, video=media_file, caption=caption_text, reply_markup=markup, parse_mode=enums.ParseMode.HTML)
-    else:
-        await client.send_message(chat_id, text=caption_text, reply_markup=markup, parse_mode=enums.ParseMode.HTML)
+    # SAFE DISPATCH WITH FALLBACK (NO CRASH ON INVALID URL)
+    try:
+        if media_type == "photo" and media_file:
+            await client.send_photo(chat_id, photo=media_file, caption=caption_text, reply_markup=markup, parse_mode=enums.ParseMode.HTML)
+        elif media_type == "video" and media_file:
+            await client.send_video(chat_id, video=media_file, caption=caption_text, reply_markup=markup, parse_mode=enums.ParseMode.HTML)
+        else:
+            await client.send_message(chat_id, text=caption_text, reply_markup=markup, parse_mode=enums.ParseMode.HTML)
+    except Exception as err:
+        print(f"⚠️ Warning: Markup error caught ({err}). Falling back without buttons.")
+        # Fallback without inline buttons if a bad URL sneaked in
+        if media_type == "photo" and media_file:
+            await client.send_photo(chat_id, photo=media_file, caption=caption_text, parse_mode=enums.ParseMode.HTML)
+        elif media_type == "video" and media_file:
+            await client.send_video(chat_id, video=media_file, caption=caption_text, parse_mode=enums.ParseMode.HTML)
+        else:
+            await client.send_message(chat_id, text=caption_text, parse_mode=enums.ParseMode.HTML)
 
     if START_CACHE["voice_file"]:
-        await client.send_voice(chat_id, voice=START_CACHE["voice_file"])
+        try:
+            await client.send_voice(chat_id, voice=START_CACHE["voice_file"])
+        except Exception:
+            pass
 
 @app.on_callback_query(filters.regex("verify_sub"))
 async def verify_cb(client, callback: CallbackQuery):
@@ -218,5 +247,5 @@ async def send_start_panel_refresh(client, message, user_id):
 setup_admin_handlers(app, OWNER_ID, send_start_panel_refresh)
 
 if __name__ == "__main__":
-    print("🚀 Pre-Built Fast Engine + Start Logger Active...")
+    print("🚀 Pre-Built Fast Engine + Strict URL Filter Active...")
     app.run()
