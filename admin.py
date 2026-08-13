@@ -6,14 +6,16 @@ user_states = {}
 
 def setup_admin_handlers(app: Client, owner_id: int, send_start_panel_fn):
     
+    # Clean & Professional Keyboard Layout
     admin_keyboard = ReplyKeyboardMarkup(
         [
-            [KeyboardButton("✏️ Set Text Promo"), KeyboardButton("❌ Remove Promo Text")],
-            [KeyboardButton("🔑 Set GET KEY Link"), KeyboardButton("❌ Remove GET KEY Link")],
-            [KeyboardButton("🔗 Set Click Here"), KeyboardButton("❌ Remove Click Here Link")],
-            [KeyboardButton("🌐 Set Verify Link"), KeyboardButton("❌ Remove Verify Link")],
-            [KeyboardButton("🖼️ Set DP"), KeyboardButton("❌ Remove DP")],
-            [KeyboardButton("🎙️ Set Voice"), KeyboardButton("❌ Remove Voice")],
+            [KeyboardButton("✏️ Set Promo Text"), KeyboardButton("❌ Remove Promo")],
+            [KeyboardButton("🔑 Set Get Key"), KeyboardButton("❌ Remove Get Key")],
+            [KeyboardButton("🔗 Set Click Here"), KeyboardButton("❌ Remove Click")],
+            [KeyboardButton("🌐 Set Verify Link"), KeyboardButton("❌ Remove Verify")],
+            [KeyboardButton("📢 Broadcast"), KeyboardButton("📊 Bot Stats")],
+            [KeyboardButton("🖼️ Set Banner DP"), KeyboardButton("❌ Remove DP")],
+            [KeyboardButton("🎙️ Set Voice Note"), KeyboardButton("❌ Remove Voice")],
             [KeyboardButton("✅ SLOT 1"), KeyboardButton("✅ SLOT 2")],
             [KeyboardButton("✅ SLOT 3"), KeyboardButton("✅ SLOT 4")],
             [KeyboardButton("✅ SLOT 5"), KeyboardButton("✅ SLOT 6")],
@@ -27,7 +29,7 @@ def setup_admin_handlers(app: Client, owner_id: int, send_start_panel_fn):
         if message.from_user.id != owner_id:
             return
         user_states.pop(message.from_user.id, None)
-        await message.reply_text("⚙️ **Welcome to Admin Panel**\n\nSabhi link aur settings manage karne ke liye niche diye gaye buttons ka use karein:", reply_markup=admin_keyboard)
+        await message.reply_text("⚙️ **Welcome to Admin Panel**\n\nNiche diye gaye buttons se bot ko control karein:", reply_markup=admin_keyboard)
 
     @app.on_message(filters.private & ~filters.command("start") & ~filters.command("admin"))
     async def handle_admin_inputs(client, message: Message):
@@ -38,51 +40,61 @@ def setup_admin_handlers(app: Client, owner_id: int, send_start_panel_fn):
         text = message.text
 
         menu_buttons = [
-            "✏️ Set Text Promo", "❌ Remove Promo Text", 
-            "🔑 Set GET KEY Link", "❌ Remove GET KEY Link", 
-            "🔗 Set Click Here", "❌ Remove Click Here Link",
-            "🌐 Set Verify Link", "❌ Remove Verify Link",
-            "🖼️ Set DP", "❌ Remove DP", 
-            "🎙️ Set Voice", "❌ Remove Voice", 
+            "✏️ Set Promo Text", "❌ Remove Promo", 
+            "🔑 Set Get Key", "❌ Remove Get Key", 
+            "🔗 Set Click Here", "❌ Remove Click",
+            "🌐 Set Verify Link", "❌ Remove Verify",
+            "📢 Broadcast", "📊 Bot Stats",
+            "🖼️ Set Banner DP", "❌ Remove DP", 
+            "🎙️ Set Voice Note", "❌ Remove Voice", 
             "🟢 Check Status"
         ]
 
         if text in menu_buttons or (text and text.startswith("✅ SLOT ")):
             user_states.pop(user_id, None)
 
-            if text == "✏️ Set Text Promo":
+            if text == "✏️ Set Promo Text":
                 user_states[user_id] = "SET_PROMO"
                 return await message.reply_text("✏️ Send new Promo Text for /start:\n\nTip: Use {name} for user's full name.")
             
-            elif text == "❌ Remove Promo Text":
+            elif text == "❌ Remove Promo":
                 set_setting("promo_text", "")
                 return await message.reply_text("✅ Promo Text Removed!")
 
-            elif text == "🔑 Set GET KEY Link":
+            elif text == "🔑 Set Get Key":
                 user_states[user_id] = "SET_GET_KEY"
-                return await message.reply_text("🔑 Send new GET KEY URL (Direct link bhejein):")
+                return await message.reply_text("🔑 Send new Get Key URL:")
                 
-            elif text == "❌ Remove GET KEY Link":
+            elif text == "❌ Remove Get Key":
                 set_setting("get_key_url", "")
-                return await message.reply_text("✅ GET KEY Link Removed!")
+                return await message.reply_text("✅ Get Key Link Removed!")
 
             elif text == "🔗 Set Click Here":
                 user_states[user_id] = "SET_CLICK_HERE"
-                return await message.reply_text("🔗 Send Click Here URL (Direct link bhejein):")
+                return await message.reply_text("🔗 Send Click Here URL:")
                 
-            elif text == "❌ Remove Click Here Link":
+            elif text == "❌ Remove Click":
                 set_setting("click_url", "")
                 return await message.reply_text("✅ Click Here Link Removed!")
 
             elif text == "🌐 Set Verify Link":
                 user_states[user_id] = "SET_VERIFY_URL"
-                return await message.reply_text("🌐 Send Verify / Check Joined URL (Direct link bhejein):")
+                return await message.reply_text("🌐 Send Verify / Check Joined URL:")
                 
-            elif text == "❌ Remove Verify Link":
+            elif text == "❌ Remove Verify":
                 set_setting("verify_url", "")
-                return await message.reply_text("✅ Verify Link Removed! (Ab bot automatic verification karega)")
+                return await message.reply_text("✅ Verify Link Removed!")
 
-            elif text == "🖼️ Set DP":
+            elif text == "📢 Broadcast":
+                user_states[user_id] = "BROADCAST"
+                return await message.reply_text("📢 Send the message (Text, Photo, or Video) you want to broadcast to all users:")
+
+            elif text == "📊 Bot Stats":
+                total_users = get_db("SELECT COUNT(*) FROM users")
+                count = total_users[0][0] if total_users else 0
+                return await message.reply_text(f"📊 **Bot Statistics**\n\n👥 Total Users in Database: `{count}`")
+
+            elif text == "🖼️ Set Banner DP":
                 user_states[user_id] = "SET_DP"
                 return await message.reply_text("🖼️ Send Banner Photo or Video:")
                 
@@ -91,7 +103,7 @@ def setup_admin_handlers(app: Client, owner_id: int, send_start_panel_fn):
                 set_setting("media_type", "")
                 return await message.reply_text("✅ DP Removed!")
 
-            elif text == "🎙️ Set Voice":
+            elif text == "🎙️ Set Voice Note":
                 user_states[user_id] = "SET_VOICE"
                 return await message.reply_text("🎙️ Send Voice Message for /start:")
                 
@@ -107,7 +119,7 @@ def setup_admin_handlers(app: Client, owner_id: int, send_start_panel_fn):
                 user_states[user_id] = f"SET_SLOT_{slot_num}"
                 return await message.reply_text(f"✅ Send Data for SLOT {slot_num} in format:\nChannel ID | Channel Name | Invite Link\n\nTo remove send: `off`")
 
-        # State processing
+        # ---------------- STATE (DATA) HANDLERS ----------------
         state = user_states.get(user_id)
         if not state:
             return
@@ -121,7 +133,7 @@ def setup_admin_handlers(app: Client, owner_id: int, send_start_panel_fn):
         elif state == "SET_GET_KEY":
             set_setting("get_key_url", message.text.strip())
             user_states.pop(user_id, None)
-            await message.reply_text("✅ GET KEY Link Saved Successfully!")
+            await message.reply_text("✅ Get Key Link Saved Successfully!")
 
         elif state == "SET_CLICK_HERE":
             set_setting("click_url", message.text.strip())
@@ -132,6 +144,28 @@ def setup_admin_handlers(app: Client, owner_id: int, send_start_panel_fn):
             set_setting("verify_url", message.text.strip())
             user_states.pop(user_id, None)
             await message.reply_text("✅ Verify Link Saved Successfully!")
+
+        elif state == "BROADCAST":
+            users = get_db("SELECT user_id FROM users")
+            sent = 0
+            failed = 0
+            status_msg = await message.reply_text("📢 Broadcast in progress, please wait...")
+            
+            for u in users:
+                u_id = u[0]
+                try:
+                    if message.photo:
+                        await client.send_photo(u_id, photo=message.photo.file_id, caption=message.caption.html if message.caption else "", parse_mode=enums.ParseMode.HTML)
+                    elif message.video:
+                        await client.send_video(u_id, video=message.video.file_id, caption=message.caption.html if message.caption else "", parse_mode=enums.ParseMode.HTML)
+                    else:
+                        await client.send_message(u_id, text=message.text.html if message.text else "", parse_mode=enums.ParseMode.HTML)
+                    sent += 1
+                except Exception:
+                    failed += 1
+            
+            user_states.pop(user_id, None)
+            await status_msg.edit_text(f"✅ **Broadcast Completed!**\n\n📤 Successfully Sent: `{sent}`\n❌ Failed: `{failed}`")
 
         elif state == "SET_DP":
             if message.photo:
