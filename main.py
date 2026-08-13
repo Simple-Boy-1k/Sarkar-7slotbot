@@ -17,6 +17,17 @@ OWNER_ID = int(os.environ.get("OWNER_ID", "0"))
 app = Client("Sarkar_7Slot_Bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
 init_db()
 
+# ----------------- URL CLEANER (PREVENTS 400 BUTTON_URL_INVALID) -----------------
+def clean_url(url):
+    if not url:
+        return None
+    url = str(url).strip()
+    if not url:
+        return None
+    if not (url.startswith("http://") or url.startswith("https://") or url.startswith("t.me/") or url.startswith("tg://")):
+        url = f"https://{url}"
+    return url
+
 # ----------------- FAST CACHE SYSTEM -----------------
 _setting_cache = {}
 _setting_time = {}
@@ -41,14 +52,14 @@ def get_slots_fast():
     _slots_cache = get_db("SELECT id, chat_id, name, link FROM slots ORDER BY id ASC") or []
     _slots_cache_time = now
     return _slots_cache
-# ----------------------------------------------------
 
-# Single slot checking function
+# ----------------- FAST PARALLEL FORCE-SUB CHECK -----------------
 async def _check_single_slot(client, slot, user_id):
     if not isinstance(slot, (list, tuple)) or len(slot) < 4:
         return None
     s_id, chat_id, name, link = slot[0], slot[1], slot[2], slot[3]
-    if link and str(link).strip():
+    link = clean_url(link)
+    if link:
         if chat_id and str(chat_id).strip():
             try:
                 member = await client.get_chat_member(str(chat_id).strip(), user_id)
@@ -60,16 +71,16 @@ async def _check_single_slot(client, slot, user_id):
             return (s_id, name or f"Channel {s_id}", link)
     return None
 
-# FAST PARALLEL FORCE-SUB CHECK
 async def check_force_sub(client, user_id):
     slots = get_slots_fast()
     tasks = [_check_single_slot(client, slot, user_id) for slot in slots]
     results = await asyncio.gather(*tasks)
     return [res for res in results if res is not None]
 
+# ----------------- START PANEL -----------------
 async def send_start_panel(client, message, user_id):
     if get_setting_fast("bot_status") == "offline" and not is_admin(user_id, OWNER_ID):
-        offline_chan = get_setting_fast("offline_channel") or "https://t.me"
+        offline_chan = clean_url(get_setting_fast("offline_channel")) or "https://t.me"
         return await message.reply_text(
             "🔴 <b>Bot is currently Offline for maintenance.</b>",
             reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Official Channel", url=offline_chan)]]),
@@ -85,8 +96,8 @@ async def send_start_panel(client, message, user_id):
     raw_key = get_setting_fast("get_key_url")
     raw_click = get_setting_fast("click_url")
     
-    get_key_link = raw_click if (raw_click and str(raw_click).strip()) else raw_key
-    has_key_link = bool(get_key_link and str(get_key_link).strip())
+    get_key_link = clean_url(raw_click if (raw_click and str(raw_click).strip()) else raw_key)
+    has_key_link = bool(get_key_link)
 
     header = f"{emojis.EMOJI_WELCOME_HEAD} <b>Welcome {full_name} 🌹</b>\n\n"
     
@@ -94,7 +105,7 @@ async def send_start_panel(client, message, user_id):
         indent = "\u00A0" * 8
         footer = (
             f"\n\n{emojis.EMOJI_KEY_HEAD_LEFT1} {emojis.EMOJI_KEY_HEAD_LEFT2} <b>𝐇𝐨𝐰 𝐓𝐨 𝐆𝐞𝐭 𝐊𝐞𝐲</b> {emojis.EMOJI_KEY_HEAD_RIGHT1} {emojis.EMOJI_KEY_HEAD_RIGHT2}\n"
-            f"{indent}{emojis.EMOJI_GET_KEY_LEFT} <a href='{str(get_key_link).strip()}'><b>𝐆𝐞𝐭 𝐊𝐞𝐲 </b></a> {emojis.EMOJI_GET_KEY_RIGHT}"
+            f"{indent}{emojis.EMOJI_GET_KEY_LEFT} <a href='{get_key_link}'><b>𝐆𝐞𝐭 𝐊𝐞𝐲 </b></a> {emojis.EMOJI_GET_KEY_RIGHT}"
         )
     else:
         footer = ""
@@ -107,7 +118,7 @@ async def send_start_panel(client, message, user_id):
                                           .replace("{mention}", mention)
         
         if has_key_link:
-            formatted_text = formatted_text.replace("{key_link}", str(get_key_link).strip())
+            formatted_text = formatted_text.replace("{key_link}", get_key_link)
 
         if "𝐆𝐞𝐭 𝐊𝐞𝐲" in custom_text or "𝐇𝐨𝐰 𝐓𝐨 𝐆𝐞𝐭 𝐊𝐞𝐲" in custom_text:
             caption_text = formatted_text
@@ -126,26 +137,31 @@ async def send_start_panel(client, message, user_id):
     
     active_slots = []
     for s in all_slots:
-        if isinstance(s, (list, tuple)) and len(s) >= 3 and s[2] and str(s[2]).strip():
+        if isinstance(s, (list, tuple)) and len(s) >= 4 and s[3] and str(s[3]).strip():
             active_slots.append(s)
 
     for i in range(0, len(active_slots), 2):
         row = []
         s1 = active_slots[i]
-        s1_name = s1[1] if len(s1) > 1 and s1[1] else f"Channel {s1[0]}"
-        row.append(InlineKeyboardButton(text=f"💜 {s1_name}", url=str(s1[2])))
+        s1_name = s1[2] if len(s1) > 2 and s1[2] else f"Channel {s1[0]}"
+        s1_link = clean_url(s1[3])
+        if s1_link:
+            row.append(InlineKeyboardButton(text=f"💜 {s1_name}", url=s1_link))
         
         if i + 1 < len(active_slots):
             s2 = active_slots[i+1]
-            s2_name = s2[1] if len(s2) > 1 and s2[1] else f"Channel {s2[0]}"
-            row.append(InlineKeyboardButton(text=f"💜 {s2_name}", url=str(s2[2])))
+            s2_name = s2[2] if len(s2) > 2 and s2[2] else f"Channel {s2[0]}"
+            s2_link = clean_url(s2[3])
+            if s2_link:
+                row.append(InlineKeyboardButton(text=f"💜 {s2_name}", url=s2_link))
             
-        inline_buttons.append(row)
+        if row:
+            inline_buttons.append(row)
 
-    # Check Joined Button
-    verify_url = get_setting_fast("verify_url")
-    if verify_url and str(verify_url).strip():
-        inline_buttons.append([InlineKeyboardButton(text="🟢 Check Joined", url=str(verify_url).strip())])
+    # Check Joined Button Validation
+    verify_url = clean_url(get_setting_fast("verify_url"))
+    if verify_url:
+        inline_buttons.append([InlineKeyboardButton(text="🟢 Check Joined", url=verify_url)])
     else:
         inline_buttons.append([InlineKeyboardButton(text="🟢 Check Joined", callback_data="verify_sub")])
 
@@ -164,7 +180,6 @@ async def send_start_panel(client, message, user_id):
 @app.on_message(filters.command("start"))
 async def start_cmd(client, message: Message):
     user_id = message.from_user.id
-    # Background non-blocking DB write
     asyncio.create_task(asyncio.to_thread(get_db, "INSERT OR IGNORE INTO users (user_id) VALUES (?)", (user_id,), True))
     user_states.pop(user_id, None)
     await send_start_panel(client, message, user_id)
@@ -183,15 +198,15 @@ async def verify_cb(client, callback: CallbackQuery):
         
         raw_key = get_setting_fast("get_key_url")
         raw_click = get_setting_fast("click_url")
-        final_key_url = raw_click if (raw_click and str(raw_click).strip()) else raw_key
+        final_key_url = clean_url(raw_click if (raw_click and str(raw_click).strip()) else raw_key)
         
         try:
             await callback.message.delete()
         except Exception:
             pass
         
-        if final_key_url and str(final_key_url).strip():
-            key_msg = f"🎉 <b>SUCCESS! All channels verified.</b>\n\n🔑 <b>Your Key Link:</b> {str(final_key_url).strip()}"
+        if final_key_url:
+            key_msg = f"🎉 <b>SUCCESS! All channels verified.</b>\n\n🔑 <b>Your Key Link:</b> {final_key_url}"
         else:
             key_msg = "🎉 <b>SUCCESS! All channels verified.</b>"
             
