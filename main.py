@@ -16,14 +16,16 @@ app = Client("Sarkar_7Slot_Bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT
 init_db()
 
 async def check_force_sub(client, user_id):
-    slots = get_db("SELECT id, chat_id, name, link FROM slots ORDER BY id ASC")
+    slots = get_db("SELECT id, chat_id, name, link FROM slots ORDER BY id ASC") or []
     unjoined = []
     for slot in slots:
-        s_id, chat_id, name, link = slot
-        if link and link.strip():
-            if chat_id and chat_id.strip():
+        if not isinstance(slot, (list, tuple)) or len(slot) < 4:
+            continue
+        s_id, chat_id, name, link = slot[0], slot[1], slot[2], slot[3]
+        if link and str(link).strip():
+            if chat_id and str(chat_id).strip():
                 try:
-                    member = await client.get_chat_member(chat_id.strip(), user_id)
+                    member = await client.get_chat_member(str(chat_id).strip(), user_id)
                     if member.status in [enums.ChatMemberStatus.BANNED, enums.ChatMemberStatus.LEFT]:
                         unjoined.append((s_id, name or f"Channel {s_id}", link))
                 except Exception:
@@ -50,15 +52,15 @@ async def send_start_panel(client, message, user_id):
     raw_key = get_setting("get_key_url")
     raw_click = get_setting("click_url")
     
-    get_key_link = raw_click if (raw_click and raw_click.strip()) else raw_key
-    has_key_link = bool(get_key_link and get_key_link.strip())
+    get_key_link = raw_click if (raw_click and str(raw_click).strip()) else raw_key
+    has_key_link = bool(get_key_link and str(get_key_link).strip())
 
     header = f"{emojis.EMOJI_WELCOME_HEAD} <b>Welcome {full_name}👀</b>\n\n"
     
     if has_key_link:
         footer = (
             f"\n\n{emojis.EMOJI_KEY_HEAD_LEFT1} {emojis.EMOJI_KEY_HEAD_LEFT2} <b>How To Get Key</b> {emojis.EMOJI_KEY_HEAD_RIGHT1} {emojis.EMOJI_KEY_HEAD_RIGHT2}\n"
-            f"{emojis.EMOJI_GET_KEY_LEFT} <a href='{get_key_link.strip()}'><b>GET KEY</b></a> {emojis.EMOJI_GET_KEY_RIGHT}"
+            f"{emojis.EMOJI_GET_KEY_LEFT} <a href='{str(get_key_link).strip()}'><b>GET KEY</b></a> {emojis.EMOJI_GET_KEY_RIGHT}"
         )
     else:
         footer = ""
@@ -66,19 +68,19 @@ async def send_start_panel(client, message, user_id):
     custom_text = get_setting("promo_text")
 
     if custom_text:
-        formatted_text = custom_text.replace("{name}", full_name)\
-                                    .replace("{first_name}", first_name)\
-                                    .replace("{mention}", mention)
+        formatted_text = str(custom_text).replace("{name}", full_name)\
+                                          .replace("{first_name}", first_name)\
+                                          .replace("{mention}", mention)
         
         if has_key_link:
-            formatted_text = formatted_text.replace("{key_link}", get_key_link.strip())
+            formatted_text = formatted_text.replace("{key_link}", str(get_key_link).strip())
 
         if "𝐆𝐞𝐭 𝐊𝐞𝐲" in custom_text or "𝐇𝐨𝐰 𝐓𝐨 𝐆𝐞𝐭 𝐊𝐞𝐲" in custom_text:
             caption_text = formatted_text
         else:
             caption_text = f"{header}{formatted_text}{footer}"
     else:
-        middle = "🚫 <b>𝐉𝐨𝐢𝐧 𝐀𝐥𝐥 𝐂𝐡𝐚𝐦𝐦𝐞𝐥𝐬 𝐓𝐨 𝐔𝐧𝐥𝐨𝐜𝐤 </b> 📬"
+        middle = "🚫 <b>𝐉𝐨𝐢𝐧 𝐀𝐥𝐥 𝐂𝐡𝐚𝐧𝐧𝐞𝐥𝐬 𝐓𝐨 𝐔𝐧𝐥𝐨𝐜𝐤 </b> 📬"
         caption_text = f"{header}{middle}{footer}"
 
     media_file = get_setting("media_file_id")
@@ -86,26 +88,34 @@ async def send_start_panel(client, message, user_id):
     voice_file = get_setting("voice_file_id")
 
     inline_buttons = []
-    all_slots = get_db("SELECT id, name, link FROM slots ORDER BY id ASC")
-    active_slots = [s for s in all_slots if s[2] and s[2].strip()]
+    all_slots = get_db("SELECT id, name, link FROM slots ORDER BY id ASC") or []
+    
+    active_slots = []
+    for s in all_slots:
+        if isinstance(s, (list, tuple)) and len(s) >= 3 and s[2] and str(s[2]).strip():
+            active_slots.append(s)
 
     for i in range(0, len(active_slots), 2):
         row = []
         s1 = active_slots[i]
-        row.append(InlineKeyboardButton(text=f"💜 {s1[1] or f'Channel {s1[0]} '}", url=s1[2]))
+        s1_name = s1[1] if len(s1) > 1 and s1[1] else f"Channel {s1[0]}"
+        row.append(InlineKeyboardButton(text=f"💜 {s1_name}", url=str(s1[2])))
+        
         if i + 1 < len(active_slots):
             s2 = active_slots[i+1]
-            row.append(InlineKeyboardButton(text=f"💜 {s2[1] or f'Channel {s2[0]} '}", url=s2[2]))
+            s2_name = s2[1] if len(s2) > 1 and s2[1] else f"Channel {s2[0]}"
+            row.append(InlineKeyboardButton(text=f"💜 {s2_name}", url=str(s2[2])))
+            
         inline_buttons.append(row)
 
-    # Check Joined Button (Supports both URL and Callback verification)
+    # Check Joined Button
     verify_url = get_setting("verify_url")
-    if verify_url and verify_url.strip():
-        inline_buttons.append([InlineKeyboardButton(text="🟢 Check Joined", url=verify_url.strip())])
+    if verify_url and str(verify_url).strip():
+        inline_buttons.append([InlineKeyboardButton(text="🟢 Check Joined", url=str(verify_url).strip())])
     else:
         inline_buttons.append([InlineKeyboardButton(text="🟢 Check Joined", callback_data="verify_sub")])
 
-    markup = InlineKeyboardMarkup(inline_buttons)
+    markup = InlineKeyboardMarkup(inline_buttons) if inline_buttons else None
 
     if media_type == "photo" and media_file:
         await client.send_photo(message.chat.id, photo=media_file, caption=caption_text, reply_markup=markup, parse_mode=enums.ParseMode.HTML)
@@ -138,12 +148,15 @@ async def verify_cb(client, callback: CallbackQuery):
         
         raw_key = get_setting("get_key_url")
         raw_click = get_setting("click_url")
-        final_key_url = raw_click if (raw_click and raw_click.strip()) else raw_key
+        final_key_url = raw_click if (raw_click and str(raw_click).strip()) else raw_key
         
-        await callback.message.delete()
+        try:
+            await callback.message.delete()
+        except Exception:
+            pass
         
-        if final_key_url and final_key_url.strip():
-            key_msg = f"🎉 <b>SUCCESS! All channels verified.</b>\n\n🔑 <b>Your Key Link:</b> {final_key_url.strip()}"
+        if final_key_url and str(final_key_url).strip():
+            key_msg = f"🎉 <b>SUCCESS! All channels verified.</b>\n\n🔑 <b>Your Key Link:</b> {str(final_key_url).strip()}"
         else:
             key_msg = "🎉 <b>SUCCESS! All channels verified.</b>"
             
@@ -152,4 +165,5 @@ async def verify_cb(client, callback: CallbackQuery):
 setup_admin_handlers(app, OWNER_ID, send_start_panel)
 
 if __name__ == "__main__":
+    print("🚀 Bot starting...")
     app.run()
