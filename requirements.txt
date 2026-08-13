@@ -1,3 +1,2 @@
-pyrogram
+pyrofork
 tgcrypto
-pymongo
