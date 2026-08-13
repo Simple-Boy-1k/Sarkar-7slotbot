@@ -58,9 +58,10 @@ async def send_start_panel(client, message, user_id):
     header = f"{emojis.EMOJI_WELCOME_HEAD} <b>Welcome {full_name} 🌹</b>\n\n"
     
     if has_key_link:
+        # GET KEY ko aage karne ke liye yahan 3 spaces add kiye hain
         footer = (
             f"\n\n{emojis.EMOJI_KEY_HEAD_LEFT1} {emojis.EMOJI_KEY_HEAD_LEFT2} <b>𝐇𝐨𝐰 𝐓𝐨 𝐆𝐞𝐭 𝐊𝐞𝐲</b> {emojis.EMOJI_KEY_HEAD_RIGHT1} {emojis.EMOJI_KEY_HEAD_RIGHT2}\n"
-            f"{emojis.EMOJI_GET_KEY_LEFT} <a href='{str(get_key_link).strip()}'><b>𝐆𝐞𝐭 𝐊𝐞𝐲 </b></a> {emojis.EMOJI_GET_KEY_RIGHT}"
+            f"   {emojis.EMOJI_GET_KEY_LEFT} <a href='{str(get_key_link).strip()}'><b>𝐆𝐞𝐭 𝐊𝐞𝐲 </b></a> {emojis.EMOJI_GET_KEY_RIGHT}"
         )
     else:
         footer = ""
@@ -75,7 +76,7 @@ async def send_start_panel(client, message, user_id):
         if has_key_link:
             formatted_text = formatted_text.replace("{key_link}", str(get_key_link).strip())
 
-        if "   𝐆𝐞𝐭 𝐊𝐞𝐲" in custom_text or "𝐇𝐨𝐰 𝐓𝐨 𝐆𝐞𝐭 𝐊𝐞𝐲" in custom_text:
+        if "𝐆𝐞𝐭 𝐊𝐞𝐲" in custom_text or "𝐇𝐨𝐰 𝐓𝐨 𝐆𝐞𝐭 𝐊𝐞𝐲" in custom_text:
             caption_text = formatted_text
         else:
             caption_text = f"{header}{formatted_text}{footer}"
