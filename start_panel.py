@@ -3,7 +3,7 @@ from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from database import get_db, get_setting
 
 def clean_url(url):
-    """ Fast URL Fixer """
+    """ Fast URL Fixer with Strict Validation """
     if not url:
         return None
     url = str(url).strip().replace(" ", "")
@@ -13,8 +13,14 @@ def clean_url(url):
     if url.startswith("@"):
         return f"https://t.me/{url[1:]}"
     if not (url.startswith("http://") or url.startswith("https://") or url.startswith("tg://")):
-        return f"https://{url}"
+        url = f"https://{url}"
+        
+    # Validation: Agar URL me proper domain/dot nahi hai, toh use invalid maan kar hata do
+    if "." not in url and not url.startswith("tg://"):
+        return None
+        
     return url
+
 
 
 def get_colored_start_panel():
