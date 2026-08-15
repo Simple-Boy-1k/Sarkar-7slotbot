@@ -38,35 +38,35 @@ def get_colored_start_panel():
             s = active_slots[i]
             s_name = s[2] if (s[2] and str(s[2]).strip()) else f"Channel {s[0]}"
             inline_buttons.append([
-                InlineKeyboardButton(text=f"⭐ {s_name}", url=s[3], style=enums.ButtonStyle.PRIMARY)
+                InlineKeyboardButton(text=f"⭐ {s_name}", url=s[3])
             ])
             i += 1
         else:
             row = []
             s1 = active_slots[i]
             s1_name = s1[2] if (s1[2] and str(s1[2]).strip()) else f"Channel {s1[0]}"
-            row.append(InlineKeyboardButton(text=f"🌟 {s1_name}", url=s1[3], style=enums.ButtonStyle.PRIMARY))
+            row.append(InlineKeyboardButton(text=f"🌟 {s1_name}", url=s1[3]))
 
             
             if i + 1 < total:
                 s2 = active_slots[i+1]
                 s2_name = s2[2] if (s2[2] and str(s2[2]).strip()) else f"Channel {s2[0]}"
-                row.append(InlineKeyboardButton(text=f"⭐ {s2_name}", url=s2[3], style=enums.ButtonStyle.PRIMARY))
+                row.append(InlineKeyboardButton(text=f"⭐ {s2_name}", url=s2[3]))
                 i += 2
             else:
                 i += 1
                 
             inline_buttons.append(row)
 
-    # 🟩 Check Joined Button (Green)
+    # 🟩 Check Joined Button
     verify_url = clean_url(get_setting("verify_url"))
     if verify_url:
         inline_buttons.append([
-            InlineKeyboardButton(text="🟢 Check Joined", url=verify_url, style=enums.ButtonStyle.SUCCESS)
+            InlineKeyboardButton(text="🟢 Check Joined", url=verify_url)
         ])
     else:
         inline_buttons.append([
-            InlineKeyboardButton(text="🟢 Check Joined", callback_data="verify_sub", style=enums.ButtonStyle.SUCCESS)
+            InlineKeyboardButton(text="🟢 Check Joined", callback_data="verify_sub")
         ])
 
     markup = InlineKeyboardMarkup(inline_buttons) if inline_buttons else None
