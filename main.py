@@ -66,8 +66,8 @@ def get_caption_and_status(user_full_name):
     
     if has_key_link:
         footer = (
-            f"\n\n{EMOJI_KEY_HEAD_LEFT1}{EMOJI_KEY_HEAD_LEFT2} <b>How To Get Key</b> {EMOJI_KEY_HEAD_RIGHT1}{EMOJI_KEY_HEAD_RIGHT2}\n"
-            f"{EMOJI_GET_KEY_LEFT} <a href='{get_key_link}'><b>GET KEY</b></a> {EMOJI_GET_KEY_RIGHT}"
+            f"\n\n{EMOJI_KEY_HEAD_LEFT1}{EMOJI_KEY_HEAD_LEFT2} <b>𝐇𝐨𝐰 𝐓𝐨 𝐆𝐞𝐭 𝐊𝐞𝐲</b> {EMOJI_KEY_HEAD_RIGHT1}{EMOJI_KEY_HEAD_RIGHT2}\n"
+            f"{EMOJI_GET_KEY_LEFT} <a href='{get_key_link}'><b>𝐆𝐄𝐓 𝐊𝐄𝐘</b></a> {EMOJI_GET_KEY_RIGHT}"
         )
     else:
         footer = ""
