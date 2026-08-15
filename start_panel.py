@@ -45,7 +45,8 @@ def get_colored_start_panel():
             row = []
             s1 = active_slots[i]
             s1_name = s1[2] if (s1[2] and str(s1[2]).strip()) else f"Channel {s1[0]}"
-            row.append(InlineKeyboardButton(text=f"⭐ {s1_name}", url=s1[3], style=enums.ButtonStyle.PRIMARY))
+            row.append(InlineKeyboardButton(text=f"🌟 {s1_name}", url=s1[3], style=enums.ButtonStyle.PRIMARY))
+
             
             if i + 1 < total:
                 s2 = active_slots[i+1]
