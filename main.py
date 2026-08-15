@@ -17,6 +17,32 @@ OWNER_ID = int(os.environ.get("OWNER_ID", "0"))
 app = Client("Sarkar_7Slot_Bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
 init_db()
 
+# =========================================================
+# TELEGRAM PREMIUM EMOJI IDs & HELPER SETUP
+# =========================================================
+ID_WELCOME_HEAD     = "6077883305187876926"  # 🔥 Welcome se pehle
+ID_KEY_HEAD_LEFT1   = "6269194596094317437"  # 🟢 How To Get Key ke left me pehla
+ID_KEY_HEAD_LEFT2   = "6079974593483775722"  # ⚡ How To Get Key ke left me doosra
+ID_KEY_HEAD_RIGHT1  = "6237552274944564087"  # 💨 How To Get Key ke right me pehla
+ID_KEY_HEAD_RIGHT2  = "6244425785986257276"  # 📈 How To Get Key ke right me doosra
+ID_GET_KEY_LEFT     = "6010103971023166824"  # 🤫 GET KEY ke left me
+ID_GET_KEY_RIGHT    = "6271271702408204490"  # 🔔 GET KEY ke right me
+
+def get_emoji(emoji_id: str, fallback: str) -> str:
+    if emoji_id and str(emoji_id).strip():
+        return f'<emoji id="{emoji_id.strip()}">{fallback}</emoji>'
+    return fallback
+
+# Formatted Premium Emojis
+EMOJI_WELCOME_HEAD    = get_emoji(ID_WELCOME_HEAD, "🔥")
+EMOJI_KEY_HEAD_LEFT1  = get_emoji(ID_KEY_HEAD_LEFT1, "🟢")
+EMOJI_KEY_HEAD_LEFT2  = get_emoji(ID_KEY_HEAD_LEFT2, "⚡")
+EMOJI_KEY_HEAD_RIGHT1 = get_emoji(ID_KEY_HEAD_RIGHT1, "💨")
+EMOJI_KEY_HEAD_RIGHT2 = get_emoji(ID_KEY_HEAD_RIGHT2, "📈")
+EMOJI_GET_KEY_LEFT    = get_emoji(ID_GET_KEY_LEFT, "🤫")
+EMOJI_GET_KEY_RIGHT   = get_emoji(ID_GET_KEY_RIGHT, "🔔")
+
+
 # ----------------- FAST CAPTION BUILDER (CRASH-PROOF) -----------------
 def get_caption_and_status(user_full_name):
     status = get_setting("bot_status") or "online"
@@ -36,12 +62,12 @@ def get_caption_and_status(user_full_name):
     get_key_link = clean_url(raw_click if (raw_click and str(raw_click).strip()) else raw_key)
     has_key_link = bool(get_key_link)
 
-    header = f"🔥 <b>Welcome {user_full_name}</b>\n\n"
+    header = f"{EMOJI_WELCOME_HEAD} <b>Welcome {user_full_name}</b>\n\n"
     
     if has_key_link:
         footer = (
-            f"\n\n🟢✈️ <b>How To Get Key</b> 💨📈\n"
-            f"😱 <a href='{get_key_link}'><b>GET KEY</b></a> 🔔"
+            f"\n\n{EMOJI_KEY_HEAD_LEFT1}{EMOJI_KEY_HEAD_LEFT2} <b>How To Get Key</b> {EMOJI_KEY_HEAD_RIGHT1}{EMOJI_KEY_HEAD_RIGHT2}\n"
+            f"{EMOJI_GET_KEY_LEFT} <a href='{get_key_link}'><b>GET KEY</b></a> {EMOJI_GET_KEY_RIGHT}"
         )
     else:
         footer = ""
@@ -164,5 +190,5 @@ async def send_start_panel_refresh(client, message, user_id):
 setup_admin_handlers(app, OWNER_ID, send_start_panel_refresh)
 
 if __name__ == "__main__":
-    print("🚀 Ultra-Fast Fixed Bot Started...")
+    print("🚀 Ultra-Fixed Bot Started with Premium Emojis...")
     app.run()
