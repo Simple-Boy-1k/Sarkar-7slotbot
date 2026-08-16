@@ -43,12 +43,13 @@ EMOJI_GET_KEY_LEFT    = get_emoji(ID_GET_KEY_LEFT, "🤫")
 EMOJI_GET_KEY_RIGHT   = get_emoji(ID_GET_KEY_RIGHT, "🔔")
 
 
-# ----------------- FAST CAPTION BUILDER (CRASH-PROOF) -----------------
-def get_caption_and_status(user_full_name):
-    status = get_setting("bot_status") or "online"
-    offline_chan = clean_url(get_setting("offline_channel")) or "https://t.me"
+# ----------------- ULTRA-FAST CAPTION BUILDER (NON-BLOCKING) -----------------
+async def get_caption_and_status_async(user_full_name):
+    # Fetch settings concurrently or via thread to avoid blocking loop
+    status = await asyncio.to_thread(get_setting, "bot_status") or "online"
+    offline_chan_raw = await asyncio.to_thread(get_setting, "offline_channel")
+    offline_chan = clean_url(offline_chan_raw) or "https://t.me"
     
-    # Safe Button Creation (AttributeError Fix)
     offline_btn_kwargs = {"text": "Official Channel", "url": offline_chan}
     if hasattr(enums, "ButtonStyle") and hasattr(enums.ButtonStyle, "PRIMARY"):
         offline_btn_kwargs["style"] = enums.ButtonStyle.PRIMARY
@@ -57,8 +58,8 @@ def get_caption_and_status(user_full_name):
         [InlineKeyboardButton(**offline_btn_kwargs)]
     ])
 
-    raw_key = get_setting("get_key_url")
-    raw_click = get_setting("click_url")
+    raw_key = await asyncio.to_thread(get_setting, "get_key_url")
+    raw_click = await asyncio.to_thread(get_setting, "click_url")
     get_key_link = clean_url(raw_click if (raw_click and str(raw_click).strip()) else raw_key)
     has_key_link = bool(get_key_link)
 
@@ -72,7 +73,7 @@ def get_caption_and_status(user_full_name):
     else:
         footer = ""
 
-    custom_text = get_setting("promo_text")
+    custom_text = await asyncio.to_thread(get_setting, "promo_text")
 
     if custom_text:
         formatted_text = str(custom_text)
@@ -106,16 +107,14 @@ async def check_force_sub(client, user_id, active_slots):
     results = await asyncio.gather(*tasks)
     return [res for res in results if res is not None]
 
-# ----------------- /START COMMAND (SUPER FAST & SAFE) -----------------
+# ----------------- /START COMMAND (LIGHTNING FAST) -----------------
 @app.on_message(filters.command("start"))
 async def start_cmd(client, message: Message):
     user_id = message.from_user.id
     
-    # Background non-blocking tasks
+    # Non-blocking background tasks for user registration & notification
     asyncio.create_task(asyncio.to_thread(get_db, "INSERT OR IGNORE INTO users (user_id) VALUES (?)", (user_id,), True))
     user_states.pop(user_id, None)
-    
-    # Safe Logger Call (No Event Loop Error)
     asyncio.create_task(notify_owner_on_start(client, OWNER_ID, message.from_user))
 
     user = message.from_user
@@ -123,22 +122,24 @@ async def start_cmd(client, message: Message):
     last_name = user.last_name if user and user.last_name else ""
     full_name = f"{first_name} {last_name}".strip()
 
-    status, offline_markup, caption_text = get_caption_and_status(full_name)
+    # Fetch status, markup, and caption asynchronously to prevent lagging
+    status, offline_markup, caption_text = await get_caption_and_status_async(full_name)
 
-    if status == "offline" and not is_admin(user_id, OWNER_ID):
+    is_user_admin = await asyncio.to_thread(is_admin, user_id, OWNER_ID)
+    if status == "offline" and not is_user_admin:
         return await message.reply_text("🔴 <b>Bot is currently Offline for maintenance.</b>", reply_markup=offline_markup, parse_mode=enums.ParseMode.HTML)
 
     caption_text = caption_text.replace("{name}", full_name)\
                                .replace("{first_name}", first_name)\
                                .replace("{mention}", user.mention if user else full_name)
 
-    # Fetch Buttons
-    markup, _ = get_colored_start_panel()
+    # Fetch slots panel concurrently
+    markup, _ = await asyncio.to_thread(get_colored_start_panel)
 
     chat_id = message.chat.id
-    media_file = get_setting("media_file_id")
-    media_type = get_setting("media_type")
-    voice_file = get_setting("voice_file_id")
+    media_file = await asyncio.to_thread(get_setting, "media_file_id")
+    media_type = await asyncio.to_thread(get_setting, "media_type")
+    voice_file = await asyncio.to_thread(get_setting, "voice_file_id")
 
     try:
         if media_type == "photo" and media_file:
@@ -160,7 +161,7 @@ async def start_cmd(client, message: Message):
 async def verify_cb(client, callback: CallbackQuery):
     user_id = callback.from_user.id
     
-    _, active_slots = get_colored_start_panel()
+    _, active_slots = await asyncio.to_thread(get_colored_start_panel)
 
     unjoined = await check_force_sub(client, user_id, active_slots)
     if unjoined:
@@ -168,8 +169,8 @@ async def verify_cb(client, callback: CallbackQuery):
     else:
         await callback.answer("✅ Verified Successfully!", show_alert=False)
         
-        raw_key = get_setting("get_key_url")
-        raw_click = get_setting("click_url")
+        raw_key = await asyncio.to_thread(get_setting, "get_key_url")
+        raw_click = await asyncio.to_thread(get_setting, "click_url")
         final_key_url = clean_url(raw_click if (raw_click and str(raw_click).strip()) else raw_key)
         
         try:
@@ -180,7 +181,7 @@ async def verify_cb(client, callback: CallbackQuery):
         if final_key_url:
             key_msg = f"🎉 <b>SUCCESS! All channels verified.</b>\n\n🔑 <b>Your Key Link:</b> {final_key_url}"
         else:
-            key_msg = "🎉 <b>SUCCESS! All channels verified.</b>"
+            key_msg = f"🎉 <b>SUCCESS! All channels verified.</b>"
             
         await client.send_message(callback.message.chat.id, key_msg, parse_mode=enums.ParseMode.HTML, disable_web_page_preview=True)
 
@@ -190,5 +191,5 @@ async def send_start_panel_refresh(client, message, user_id):
 setup_admin_handlers(app, OWNER_ID, send_start_panel_refresh)
 
 if __name__ == "__main__":
-    print("🚀 Ultra-Fixed Bot Started with Premium Emojis...")
+    print("🚀 Lightning-Fast Optimized Bot Started...")
     app.run()
