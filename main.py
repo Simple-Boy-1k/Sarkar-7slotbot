@@ -21,7 +21,7 @@ init_db()
 # TELEGRAM PREMIUM EMOJI IDs & HELPER SETUP
 # =========================================================
 ID_WELCOME_HEAD     = "6077883305187876926"  # 🔥 Welcome se pehle
-ID_KEY_HEAD_LEFT1   = "6177216999572115279"  # 🟢 How To Get Key ke left me pehla
+ID_KEY_HEAD_LEFT1   = "6269194596094317437"  # 🟢 How To Get Key ke left me pehla
 ID_KEY_HEAD_LEFT2   = "6079974593483775722"  # ⚡ How To Get Key ke left me doosra
 ID_KEY_HEAD_RIGHT1  = "6237552274944564087"  # 💨 How To Get Key ke right me pehla
 ID_KEY_HEAD_RIGHT2  = "6244425785986257276"  # 📈 How To Get Key ke right me doosra
@@ -30,7 +30,7 @@ ID_GET_KEY_RIGHT    = "6271271702408204490"  # 🔔 GET KEY ke right me
 
 def get_emoji(emoji_id: str, fallback: str) -> str:
     if emoji_id and str(emoji_id).strip():
-        return f'<tg-emoji emoji-id="{emoji_id.strip()}">{fallback}</tg-emoji>'
+        return f'<emoji id="{emoji_id.strip()}">{fallback}</emoji>'
     return fallback
 
 # Formatted Premium Emojis
@@ -196,5 +196,5 @@ async def send_start_panel_refresh(client, message, user_id):
 setup_admin_handlers(app, OWNER_ID, send_start_panel_refresh)
 
 if __name__ == "__main__":
-    print("🚀 Ultra-Fast Parallel Optimized Bot Started with Telegram Emojis...")
+    print("🚀 Ultra-Fast Parallel Optimized Bot Started with Custom Emojis...")
     app.run()
