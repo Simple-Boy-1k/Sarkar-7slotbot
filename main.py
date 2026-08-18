@@ -21,7 +21,7 @@ init_db()
 # TELEGRAM PREMIUM EMOJI IDs & HELPER SETUP
 # =========================================================
 ID_WELCOME_HEAD     = "6077883305187876926"  # 🔥 Welcome se pehle
-ID_KEY_HEAD_LEFT1   = "6269194596094317437"  # 🟢 How To Get Key ke left me pehla
+ID_KEY_HEAD_LEFT1   = "6177216999572115279"  # 🟢 How To Get Key ke left me pehla
 ID_KEY_HEAD_LEFT2   = "6079974593483775722"  # ⚡ How To Get Key ke left me doosra
 ID_KEY_HEAD_RIGHT1  = "6237552274944564087"  # 💨 How To Get Key ke right me pehla
 ID_KEY_HEAD_RIGHT2  = "6244425785986257276"  # 📈 How To Get Key ke right me doosra
