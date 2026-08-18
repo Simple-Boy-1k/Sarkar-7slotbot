@@ -30,7 +30,7 @@ ID_GET_KEY_RIGHT    = "6271271702408204490"  # 🔔 GET KEY ke right me
 
 def get_emoji(emoji_id: str, fallback: str) -> str:
     if emoji_id and str(emoji_id).strip():
-        return f'<emoji id="{emoji_id.strip()}">{fallback}</emoji>'
+        return f'<tg-emoji emoji-id="{emoji_id.strip()}">{fallback}</tg-emoji>'
     return fallback
 
 # Formatted Premium Emojis
@@ -45,7 +45,6 @@ EMOJI_GET_KEY_RIGHT   = get_emoji(ID_GET_KEY_RIGHT, "🔔")
 
 # ----------------- LIGHTNING-FAST PARALLEL CAPTION BUILDER -----------------
 async def get_caption_and_status_async(user_full_name):
-    # Saari database settings ko ek sath parallel fetch karenge taaki bilkul delay na ho
     status_task = asyncio.to_thread(get_setting, "bot_status")
     offline_chan_task = asyncio.to_thread(get_setting, "offline_channel")
     raw_key_task = asyncio.to_thread(get_setting, "get_key_url")
@@ -117,7 +116,6 @@ async def check_force_sub(client, user_id, active_slots):
 async def start_cmd(client, message: Message):
     user_id = message.from_user.id
     
-    # Background non-blocking tasks
     asyncio.create_task(asyncio.to_thread(get_db, "INSERT OR IGNORE INTO users (user_id) VALUES (?)", (user_id,), True))
     user_states.pop(user_id, None)
     asyncio.create_task(notify_owner_on_start(client, OWNER_ID, message.from_user))
@@ -127,7 +125,6 @@ async def start_cmd(client, message: Message):
     last_name = user.last_name if user and user.last_name else ""
     full_name = f"{first_name} {last_name}".strip()
 
-    # Sabhi settings aur slots panel ko ek sath parallel fetch karna taaki zero delay ho
     caption_task = get_caption_and_status_async(full_name)
     admin_task = asyncio.to_thread(is_admin, user_id, OWNER_ID)
     markup_task = asyncio.to_thread(get_colored_start_panel)
@@ -199,5 +196,5 @@ async def send_start_panel_refresh(client, message, user_id):
 setup_admin_handlers(app, OWNER_ID, send_start_panel_refresh)
 
 if __name__ == "__main__":
-    print("🚀 Ultra-Fast Parallel Optimized Bot Started...")
+    print("🚀 Ultra-Fast Parallel Optimized Bot Started with Telegram Emojis...")
     app.run()
