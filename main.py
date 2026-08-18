@@ -43,11 +43,20 @@ EMOJI_GET_KEY_LEFT    = get_emoji(ID_GET_KEY_LEFT, "🤫")
 EMOJI_GET_KEY_RIGHT   = get_emoji(ID_GET_KEY_RIGHT, "🔔")
 
 
-# ----------------- ULTRA-FAST CAPTION BUILDER (NON-BLOCKING) -----------------
+# ----------------- LIGHTNING-FAST PARALLEL CAPTION BUILDER -----------------
 async def get_caption_and_status_async(user_full_name):
-    # Fetch settings concurrently or via thread to avoid blocking loop
-    status = await asyncio.to_thread(get_setting, "bot_status") or "online"
-    offline_chan_raw = await asyncio.to_thread(get_setting, "offline_channel")
+    # Saari database settings ko ek sath parallel fetch karenge taaki bilkul delay na ho
+    status_task = asyncio.to_thread(get_setting, "bot_status")
+    offline_chan_task = asyncio.to_thread(get_setting, "offline_channel")
+    raw_key_task = asyncio.to_thread(get_setting, "get_key_url")
+    raw_click_task = asyncio.to_thread(get_setting, "click_url")
+    custom_text_task = asyncio.to_thread(get_setting, "promo_text")
+
+    status, offline_chan_raw, raw_key, raw_click, custom_text = await asyncio.gather(
+        status_task, offline_chan_task, raw_key_task, raw_click_task, custom_text_task
+    )
+
+    status = status or "online"
     offline_chan = clean_url(offline_chan_raw) or "https://t.me"
     
     offline_btn_kwargs = {"text": "Official Channel", "url": offline_chan}
@@ -58,8 +67,6 @@ async def get_caption_and_status_async(user_full_name):
         [InlineKeyboardButton(**offline_btn_kwargs)]
     ])
 
-    raw_key = await asyncio.to_thread(get_setting, "get_key_url")
-    raw_click = await asyncio.to_thread(get_setting, "click_url")
     get_key_link = clean_url(raw_click if (raw_click and str(raw_click).strip()) else raw_key)
     has_key_link = bool(get_key_link)
 
@@ -72,8 +79,6 @@ async def get_caption_and_status_async(user_full_name):
         )
     else:
         footer = ""
-
-    custom_text = await asyncio.to_thread(get_setting, "promo_text")
 
     if custom_text:
         formatted_text = str(custom_text)
@@ -107,12 +112,12 @@ async def check_force_sub(client, user_id, active_slots):
     results = await asyncio.gather(*tasks)
     return [res for res in results if res is not None]
 
-# ----------------- /START COMMAND (LIGHTNING FAST) -----------------
+# ----------------- /START COMMAND (INSTANT ULTRA-FAST) -----------------
 @app.on_message(filters.command("start"))
 async def start_cmd(client, message: Message):
     user_id = message.from_user.id
     
-    # Non-blocking background tasks for user registration & notification
+    # Background non-blocking tasks
     asyncio.create_task(asyncio.to_thread(get_db, "INSERT OR IGNORE INTO users (user_id) VALUES (?)", (user_id,), True))
     user_states.pop(user_id, None)
     asyncio.create_task(notify_owner_on_start(client, OWNER_ID, message.from_user))
@@ -122,10 +127,19 @@ async def start_cmd(client, message: Message):
     last_name = user.last_name if user and user.last_name else ""
     full_name = f"{first_name} {last_name}".strip()
 
-    # Fetch status, markup, and caption asynchronously to prevent lagging
-    status, offline_markup, caption_text = await get_caption_and_status_async(full_name)
+    # Sabhi settings aur slots panel ko ek sath parallel fetch karna taaki zero delay ho
+    caption_task = get_caption_and_status_async(full_name)
+    admin_task = asyncio.to_thread(is_admin, user_id, OWNER_ID)
+    markup_task = asyncio.to_thread(get_colored_start_panel)
+    media_file_task = asyncio.to_thread(get_setting, "media_file_id")
+    media_type_task = asyncio.to_thread(get_setting, "media_type")
+    voice_file_task = asyncio.to_thread(get_setting, "voice_file_id")
 
-    is_user_admin = await asyncio.to_thread(is_admin, user_id, OWNER_ID)
+    status, offline_markup, caption_text = await caption_task
+    is_user_admin, (markup, _), media_file, media_type, voice_file = await asyncio.gather(
+        admin_task, markup_task, media_file_task, media_type_task, voice_file_task
+    )
+
     if status == "offline" and not is_user_admin:
         return await message.reply_text("🔴 <b>Bot is currently Offline for maintenance.</b>", reply_markup=offline_markup, parse_mode=enums.ParseMode.HTML)
 
@@ -133,13 +147,7 @@ async def start_cmd(client, message: Message):
                                .replace("{first_name}", first_name)\
                                .replace("{mention}", user.mention if user else full_name)
 
-    # Fetch slots panel concurrently
-    markup, _ = await asyncio.to_thread(get_colored_start_panel)
-
     chat_id = message.chat.id
-    media_file = await asyncio.to_thread(get_setting, "media_file_id")
-    media_type = await asyncio.to_thread(get_setting, "media_type")
-    voice_file = await asyncio.to_thread(get_setting, "voice_file_id")
 
     try:
         if media_type == "photo" and media_file:
@@ -191,5 +199,5 @@ async def send_start_panel_refresh(client, message, user_id):
 setup_admin_handlers(app, OWNER_ID, send_start_panel_refresh)
 
 if __name__ == "__main__":
-    print("🚀 Lightning-Fast Optimized Bot Started...")
+    print("🚀 Ultra-Fast Parallel Optimized Bot Started...")
     app.run()
